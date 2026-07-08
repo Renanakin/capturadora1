@@ -9,6 +9,7 @@ pypdfium2>=4.30.0
 opencv-python>=4.10.0
 pytesseract>=0.3.13
 Pillow>=10.4.0
+easyocr>=1.7.0          # motor OCR neuronal principal (PyTorch)
 
 # Datos y exportación
 pandas>=2.2.0

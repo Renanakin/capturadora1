@@ -9,6 +9,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from ocr_tributario.config.schema import Settings
+from ocr_tributario.extractors.anchors import extract_by_anchors
 from ocr_tributario.extractors.image_fallback import extract_pdf_image_fallback
 from ocr_tributario.extractors.ocr_tesseract import configure_tesseract, ocr_image
 from ocr_tributario.extractors.pdf_native import extract_native_pdf_data
@@ -28,6 +29,7 @@ from ocr_tributario.validators.regex_patterns import (
     extract_rut,
     extract_total,
 )
+from ocr_tributario.validators.rut import validate_rut
 
 
 @dataclass
@@ -70,6 +72,49 @@ def _build_record_from_text(
     return record
 
 
+def _merge_anchor_into_record(
+    record: InvoiceRecord,
+    anchor_result,
+) -> InvoiceRecord:
+    """Si regex no extrajo un campo y anclas sí, lo usa. También aplica Módulo 11."""
+    # RUT: si regex no dio, intenta con anclas
+    if not record.rut and anchor_result.rut:
+        canonico = validate_rut(anchor_result.rut)
+        if canonico:
+            record.rut = canonico
+
+    # Total
+    if record.total is None and anchor_result.total is not None:
+        record.total = anchor_result.total
+
+    # Neto (si no hay total, usa neto como fallback)
+    if record.total is None and anchor_result.neto is not None:
+        record.total = anchor_result.neto
+
+    # Fecha
+    if not record.fecha and anchor_result.fecha:
+        record.fecha = anchor_result.fecha.isoformat() if hasattr(anchor_result.fecha, "isoformat") else anchor_result.fecha
+        record.mes = normalize_mes(record.fecha)
+
+    # Folio
+    if not record.nro_documento and anchor_result.folio:
+        record.nro_documento = anchor_result.folio
+
+    # Proveedor
+    if not record.proveedor and anchor_result.proveedor:
+        record.proveedor = normalize_provider_name(anchor_result.proveedor)
+
+    # Re-evaluar estado
+    if record.is_valid_for_excel():
+        record.estado = "OK"
+        record.motivo_revision = None
+    elif record.estado == "QUARANTINE":
+        missing = [k for k in ("fecha", "rut", "total") if not getattr(record, k)]
+        record.motivo_revision = "Faltan campos: " + ", ".join(missing)
+
+    return record
+
+
 def process_one(
     source_path: Path,
     settings: Settings,
@@ -95,15 +140,26 @@ def process_one(
                 tesseract_cmd=settings.paths.tesseract_cmd,
                 tessdata_prefix=settings.paths.tessdata_prefix,
             )
-            return _build_record_from_text(source_path, data.get("raw_text", ""), "pdf_image")
+            record = _build_record_from_text(source_path, data.get("raw_text", ""), "pdf_image")
+            if not record.is_valid_for_excel():
+                # intentar anclas
+                anchor = data.get("anchor_result")
+                if anchor:
+                    _merge_anchor_into_record(record, anchor)
+            return record
 
         if ruta == "image":
             configure_tesseract(settings.paths.tesseract_cmd, settings.paths.tessdata_prefix)
             img = load_image(source_path)
             pre = preprocess_image(img)
-            from ocr_tributario.extractors.ocr_tesseract import ocr_array
-            text = ocr_array(pre, settings.ocr, whitelist=True)
-            return _build_record_from_text(source_path, text, "image")
+            from ocr_tributario.extractors.ocr_tesseract import ocr_array_multi_psm
+            text, ocr_meta = ocr_array_multi_psm(pre, settings.ocr)
+            record = _build_record_from_text(source_path, text, "image")
+            # Si faltan campos, intentar con extracción por anclas (más robusta)
+            if not record.is_valid_for_excel():
+                anchor = extract_by_anchors(pre, settings.ocr)
+                _merge_anchor_into_record(record, anchor)
+            return record
 
         record = InvoiceRecord(
             archivo_origen=source_path.name,

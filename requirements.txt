@@ -1,0 +1,28 @@
+# Dependencias para CapturadorM3
+# Stack: OCR tributario chileno (PDF + imagen -> Excel)
+
+# Extracción PDF
+pdfplumber>=0.11.4
+pypdfium2>=4.30.0
+
+# Visión / OCR
+opencv-python>=4.10.0
+pytesseract>=0.3.13
+Pillow>=10.4.0
+
+# Datos y exportación
+pandas>=2.2.0
+openpyxl>=3.1.5
+numpy>=1.26.0
+
+# Validación / config / logging
+pydantic>=2.9.0
+loguru>=0.7.2
+pyyaml>=6.0.1
+python-dotenv>=1.0.1
+
+# UX
+tqdm>=4.66.0
+
+# Testing
+pytest>=8.3.0

@@ -1,0 +1,42 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Entornos / secrets
+.env
+
+# Inputs y outputs del usuario
+documentos_ingresados/*
+!documentos_ingresados/.gitkeep
+quarantine/*
+!quarantine/.gitkeep
+output/*
+!output/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# Datos de tessdata externos
+.tessdata/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.spec

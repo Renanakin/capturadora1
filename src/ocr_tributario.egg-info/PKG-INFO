@@ -1,0 +1,79 @@
+Metadata-Version: 2.4
+Name: ocr-tributario
+Version: 0.1.0
+Summary: OCR Tributario Chileno (versión reducida) - CapturadorM3
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+
+# CapturadorM3 - OCR Tributario Chileno (versión reducida)
+
+Sistema on‑premises para extraer datos de **boletas y facturas chilenas** (PDF nativo o imagen escaneada) y volcarlos automáticamente a una planilla Excel con el formato de la rendición de gastos de la empresa.
+
+**Versión reducida** del proyecto `capturador_datos_v2`. Cero LLMs, cero APIs de pago, 100% determinista.
+
+---
+
+## Stack
+
+- Python 3.11+ (probado en 3.14)
+- pdfplumber · pypdfium2 · opencv-python · pytesseract · Pillow
+- pandas · openpyxl · numpy
+- pydantic · loguru · pyyaml
+
+## Requisitos del sistema
+
+| Componente | Cómo instalar en Windows |
+|---|---|
+| Python 3.11+ | https://www.python.org/downloads/ |
+| Tesseract OCR 5.x con idioma `spa` | `winget install UB-Mannheim.TesseractOCR` |
+| Poppler 24+ | `winget install oschwartz10612.Poppler` |
+
+Si Tesseract quedó sin `spa`, descargar `spa.traineddata` desde
+https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
+y dejarlo en la carpeta apuntada por `TESSDATA_PREFIX`.
+
+## Setup
+
+```powershell
+git clone <repo>
+cd CAPTURADORM3
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r requirements.txt
+copy .env.example .env
+```
+
+## Uso
+
+```powershell
+# Procesar carpeta input por defecto (documentos_ingresados\)
+python -m ocr_tributario
+
+# Procesar una carpeta específica
+python -m ocr_tributario --input .\mis_boletas --output .\resultado.xlsx
+```
+
+Resultado: `output/Rendicion_Gastos_OCR_<YYYY-MM>.xlsx`
+
+## Estructura
+
+```
+config/settings.yaml          # rutas, rangos HSV, umbrales
+src/ocr_tributario/           # código del paquete
+tests/                         # tests unitarios smoke
+scripts/                       # run_batch.ps1, calibrate_hsv.py
+documentos_ingresados/         # input
+output/                        # Excel generados
+quarantine/                    # docs fallidos + revisar_manual.xlsx
+```
+
+## Tests
+
+```powershell
+pytest -q
+```
+
+## Licencia
+
+Uso interno.

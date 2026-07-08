@@ -1,0 +1,42 @@
+# CapturadorM3 - configuración externa
+# Cualquier cambio aquí se refleja sin tocar código (Fase 1)
+
+paths:
+  input_dir: "documentos_ingresados"
+  output_dir: "output"
+  quarantine_dir: "quarantine"
+  tesseract_cmd: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+  tessdata_prefix: "C:\\Users\\Tranquilidad\\.tessdata\\"
+
+# Rangos HSV para el recuadro rojo del SII (Fase 4)
+# Si tu escáner/factura usa rojos más oscuros o más claros, ajustar aquí.
+hsv_red:
+  lower1: [0, 70, 50]
+  upper1: [10, 255, 255]
+  lower2: [170, 70, 50]
+  upper2: [179, 255, 255]
+  min_area: 5000
+  aspect_ratio: [1.5, 3.5]
+  padding: 10
+
+# Configuración OCR
+ocr:
+  lang: "spa"
+  psm: 6
+  whitelist: "0123456789Kk.-RUTN° "
+  dpi: 300
+
+# Columnas exactas de la planilla de rendición
+excel:
+  template_columns:
+    - Mes
+    - Fecha
+    - Nro Boleta Factura
+    - PROVEEDOR
+    - RUT
+    - Total
+    - Descripción del gasto
+    - Observaciones
+  sheet_procesados: "Procesados"
+  sheet_revision: "Revisión Manual"
+  freeze_header: true

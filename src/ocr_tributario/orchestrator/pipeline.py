@@ -17,7 +17,11 @@ from ocr_tributario.ingestion.scanner import scan_directory
 from ocr_tributario.models.invoice import InvoiceRecord
 from ocr_tributario.orchestrator.hitl import write_quarantine_excel
 from ocr_tributario.preprocessing.opencv_pipeline import load_image, preprocess_image
-from ocr_tributario.validators.normalizers import normalize_mes, normalize_provider_name
+from ocr_tributario.validators.normalizers import (
+    extract_provider,
+    normalize_mes,
+    normalize_provider_name,
+)
 from ocr_tributario.validators.regex_patterns import (
     extract_date,
     extract_folio,
@@ -43,6 +47,7 @@ def _build_record_from_text(
     rut = extract_rut(raw_text)
     total = extract_total(raw_text)
     folio = extract_folio(raw_text)
+    proveedor = extract_provider(raw_text, rut_canonico=rut)
 
     record = InvoiceRecord(
         archivo_origen=source_path.name,
@@ -51,6 +56,7 @@ def _build_record_from_text(
         nro_documento=folio,
         rut=rut,
         total=total,
+        proveedor=proveedor,
         ruta_extraccion=ruta_extraccion,
     )
 

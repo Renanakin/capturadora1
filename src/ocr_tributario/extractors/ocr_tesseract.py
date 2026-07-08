@@ -19,16 +19,26 @@ def configure_tesseract(tesseract_cmd: Path | str, tessdata_prefix: Path | str) 
     os.environ["TESSDATA_PREFIX"] = str(tessdata_prefix)
 
 
+def _build_tesseract_config(cfg: OcrConfig) -> str:
+    """Construye el config de Tesseract.
+
+    IMPORTANTE: pytesseract en Windows usa shlex.split(posix=False) sobre este
+    string. NO usar comillas dentro del whitelist (rompe el parser) ni
+    caracteres no-ASCII (e.g. °) - pasan como tokens sucios.
+    Por eso la whitelist se omite en esta versión: el OCR general funciona
+    mejor sin restricción. Para OCR de dígitos puros, usar llamada dedicada.
+    """
+    return f"--psm {cfg.psm}"
+
+
 def ocr_image(
     image_path: Path | str,
     cfg: OcrConfig,
-    whitelist: bool = True,
+    whitelist: bool = False,  # deprecated: ver docstring de _build_tesseract_config
 ) -> str:
     """OCR completo sobre una imagen de archivo."""
     img = Image.open(image_path)
-    config = f"--psm {cfg.psm}"
-    if whitelist:
-        config += f' -c tessedit_char_whitelist="{cfg.whitelist}"'
+    config = _build_tesseract_config(cfg)
     try:
         return pytesseract.image_to_string(img, lang=cfg.lang, config=config)
     except pytesseract.TesseractNotFoundError as exc:
@@ -36,15 +46,13 @@ def ocr_image(
         raise
 
 
-def ocr_array(img_array, cfg: OcrConfig, whitelist: bool = True) -> str:
+def ocr_array(img_array, cfg: OcrConfig, whitelist: bool = False) -> str:
     """OCR sobre un numpy array (BGR o grayscale)."""
     if hasattr(img_array, "shape") and len(img_array.shape) == 3:
         from cv2 import cv2
         img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
     img = Image.fromarray(img_array)
-    config = f"--psm {cfg.psm}"
-    if whitelist:
-        config += f' -c tessedit_char_whitelist="{cfg.whitelist}"'
+    config = _build_tesseract_config(cfg)
     try:
         return pytesseract.image_to_string(img, lang=cfg.lang, config=config)
     except pytesseract.TesseractNotFoundError as exc:

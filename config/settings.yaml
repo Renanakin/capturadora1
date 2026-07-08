@@ -22,13 +22,14 @@ hsv_red:
 # Configuración OCR
 ocr:
   lang: "spa"
-  psm: 6
+  psm: 3
   whitelist: "0123456789Kk.-RUTN° "
   dpi: 300
 
 # Columnas exactas de la planilla de rendición
 excel:
   template_columns:
+    - Archivo
     - Mes
     - Fecha
     - Nro Boleta Factura

@@ -69,6 +69,15 @@ def deskew(gray: np.ndarray, angle: float | None = None) -> np.ndarray:
 def preprocess_image(img_bgr: np.ndarray) -> np.ndarray:
     """Pipeline completo: gray -> denoise -> deskew -> binarización suave."""
     gray = to_grayscale(img_bgr)
+
+    # Upsample si la imagen es muy pequeña (mejora OCR en fotos chicas)
+    h, w = gray.shape
+    if max(h, w) < 800:
+        scale = 1500 / float(max(h, w))
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        gray = cv2.resize(gray, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+
     denoised = bilateral_denoise(gray)
     straightened = deskew(denoised)
     return straightened

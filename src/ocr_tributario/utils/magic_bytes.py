@@ -7,6 +7,8 @@ from pathlib import Path
 _PDF_MAGIC = b"%PDF-"
 _JPEG_MAGIC = b"\xff\xd8\xff"
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+# WebP: 'RIFF' .... 'WEBP'
+_WEBP_MAGIC = b"RIFF"
 
 
 def detect_file_type(path: Path) -> str:
@@ -26,6 +28,9 @@ def detect_file_type(path: Path) -> str:
     if head.startswith(_JPEG_MAGIC):
         return "image"
     if head.startswith(_PNG_MAGIC):
+        return "image"
+    # WebP: primeros 4 bytes 'RIFF', bytes 8..11 'WEBP'
+    if head.startswith(_WEBP_MAGIC) and head[8:12] == b"WEBP":
         return "image"
     return "unknown"
 

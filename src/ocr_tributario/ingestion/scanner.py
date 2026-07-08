@@ -21,7 +21,7 @@ class DocumentInput:
         return self.path.name
 
 
-_SUPPORTED_EXT = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+_SUPPORTED_EXT = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".bmp"}
 
 
 def iter_supported_files(input_dir: Path) -> Iterator[Path]:

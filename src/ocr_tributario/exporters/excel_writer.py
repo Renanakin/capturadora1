@@ -19,6 +19,7 @@ HEADER_FILL = PatternFill("solid", fgColor="305496")
 
 def _row_for(record: InvoiceRecord, columns: list[str]) -> list:
     mapping = {
+        "Archivo": record.archivo_origen,
         "Mes": record.mes or "",
         "Fecha": record.fecha or "",
         "Nro Boleta Factura": record.nro_documento or "",

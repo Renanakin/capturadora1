@@ -112,9 +112,13 @@ def _parse_money(raw: str) -> int | None:
 
 
 _FOLIO_PATTERNS = [
-    re.compile(r"(?:factura|boleta)\s*n[°ºo\.]?\s*(\d{1,10})", re.IGNORECASE),
-    re.compile(r"\bN[°ºo\.]?\s*(\d{3,10})\b"),
-    re.compile(r"\bfolio\s*n[°ºo\.]?\s*(\d{1,10})", re.IGNORECASE),
+    # "N° 001111111" / "N* 35665" / "Nº 12345"
+    re.compile(r"\bN[°ºo\*\.]?\s*(\d{3,12})\b"),
+    # "FACTURA N° 12345"
+    re.compile(r"(?:factura|boleta)\s*n[°ºo\*\.]?\s*(\d{3,12})", re.IGNORECASE),
+    # "BOLETA ELECTRÓNICA N° 001111111" - acepta espacios
+    re.compile(r"(?:factura|boleta)\s+(?:electr[oó]nica\s+)?n[°ºo\*\.]?\s*(\d{3,12})", re.IGNORECASE),
+    re.compile(r"\bfolio\s*n[°ºo\*\.]?\s*(\d{1,10})", re.IGNORECASE),
     # Folio suelto precedido por "boleta" o "factura" sin "N°"
     re.compile(r"(?:factura|boleta)\s+(\d{4,10})\b", re.IGNORECASE),
 ]
@@ -133,15 +137,24 @@ def extract_folio(text: str | None) -> int | None:
     return None
 
 
-_RUT_INLINE = re.compile(r"(\d{1,2}\.?\d{3}\.?\d{3}-[0-9Kk])|\b(\d{7,8})[\s\-]?([0-9Kk])\b")
+# RUT estricto: solo matchea cuando viene precedido de "RUT" (con o sin puntos)
+_RUT_INLINE = re.compile(
+    r"R\.?U\.?T\.?\s*[:N°ºo\.]*\s*"
+    r"(\d{1,2}\.?\d{3}\.?\d{3}-[0-9Kk])",
+    re.IGNORECASE,
+)
 
 
 def extract_rut(text: str | None) -> str | None:
-    """Encuentra y valida el primer RUT en el texto."""
+    """Encuentra y valida el primer RUT explícito en el texto.
+
+    Solo matchea cuando hay una marca 'RUT'/'R.U.T' previa (reduce falsos
+    positivos con teléfonos u otros números).
+    """
     if not text:
         return None
     for m in _RUT_INLINE.finditer(text):
-        candidate = m.group(0)
+        candidate = m.group(1)
         canonico = validate_rut(candidate)
         if canonico:
             return canonico

@@ -65,7 +65,7 @@ class TestExtractRut:
     @pytest.mark.parametrize("text", [
         "RUT: 12.345.678-5",
         "RUT 11111111-1",
-        "Contribuyente 22.222.222-2 factura",
+        "R.U.T.: 22.222.222-2",
     ])
     def test_valid(self, text):
         out = extract_rut(text)
@@ -74,3 +74,4 @@ class TestExtractRut:
 
     def test_invalid(self):
         assert extract_rut("Hola mundo sin RUT") is None
+        assert extract_rut("Telefono 111111111") is None  # sin prefijo RUT

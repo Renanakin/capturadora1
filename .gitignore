@@ -40,3 +40,9 @@ Thumbs.db
 build/
 dist/
 *.spec
+.venv311/
+python311/
+python3.11.zip
+screenshots/
+playwright*.json
+.agents/

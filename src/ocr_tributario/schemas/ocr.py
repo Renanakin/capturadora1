@@ -39,3 +39,22 @@ class DTEResponseSchema(BaseModel):
     missing: list[str] = []
     estado: str = "OK"
     motivo_revision: str | None = None
+
+
+class CedulaResponseSchema(BaseModel):
+    """Respuesta de OCR para una Cédula Chilena."""
+
+    archivo: str
+    doc_type: DocumentType = DocumentType.CEDULA
+    ocr_engine: str
+    ocr_avg_score: float
+
+    rut: str | None = None
+    nombres: str | None = None
+    apellidos: str | None = None
+    fecha_nacimiento: str | None = None
+    numero_documento: str | None = None
+
+    completeness: float = 0.0
+    estado: str = "OK"
+    motivo_revision: str | None = None

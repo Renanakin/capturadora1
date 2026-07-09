@@ -23,6 +23,10 @@ class InvoiceRecord:
     estado: EstadoDocumento = "QUARANTINE"
     motivo_revision: str | None = None
     ruta_extraccion: str | None = None
+    doc_type: str | None = None
+    ocr_engine: str | None = None
+    ocr_avg_score: float | None = None
+    completeness: float | None = None
     timestamp_proceso: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict:

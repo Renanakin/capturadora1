@@ -8,7 +8,7 @@ Arquitectura por capas (siguiendo el documento stack_ocr_chile_fastapi.md):
 - parse_dte: parser específico por tipo DTE
 """
 
-from ocr_tributario.services.ocr_easy import OCREasy
+from ocr_tributario.services.ocr_paddle import OCRPaddle
 from ocr_tributario.services.ocr_tesseract import OCRTesseract
 from ocr_tributario.services.classify import classify_document
 from ocr_tributario.services.parse_dte import parse_dte_fields

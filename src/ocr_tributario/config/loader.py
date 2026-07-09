@@ -27,7 +27,6 @@ def _load_yaml(path: Path) -> dict:
 
 def _resolve_paths(data: dict) -> PathsConfig:
     paths_data = data.get("paths", {}) or {}
-    # Permitir override por variables de entorno (mayor precedencia)
     env_overrides = {
         "input_dir": os.getenv("CAPTURADOR_INPUT_DIR"),
         "output_dir": os.getenv("CAPTURADOR_OUTPUT_DIR"),
@@ -41,12 +40,25 @@ def _resolve_paths(data: dict) -> PathsConfig:
     return PathsConfig(**paths_data)
 
 
+def _resolve_api(data: dict) -> dict:
+    api_data = data.get("api", {}) or {}
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        api_data["redis_url"] = redis_url
+    return api_data
+
+
 @lru_cache(maxsize=1)
 def load_settings(settings_path: Path | None = None) -> Settings:
     """Carga settings.yaml + .env. Cacheado en proceso."""
     load_dotenv(ENV_FILE, override=False)
     path = settings_path or DEFAULT_SETTINGS_PATH
     data = _load_yaml(path)
-    return Settings(paths=_resolve_paths(data), **{
-        k: v for k, v in data.items() if k != "paths"
-    })
+    
+    api_config = _resolve_api(data)
+    
+    return Settings(
+        paths=_resolve_paths(data),
+        api=api_config,
+        **{k: v for k, v in data.items() if k not in ("paths", "api")}
+    )

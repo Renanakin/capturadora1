@@ -11,7 +11,7 @@ from typing import Iterable
 
 from loguru import logger
 
-from ocr_tributario.services.ocr_easy import OCRResult
+from ocr_tributario.services.ocr_paddle import OCRResult
 
 
 class DocumentType(str, Enum):
@@ -20,6 +20,7 @@ class DocumentType(str, Enum):
     NOTA_CREDITO = "nota_credito"
     GUIA_DESPACHO = "guia_despacho"
     DTE_GENERICO = "dte_generico"
+    CEDULA = "cedula"
     DESCONOCIDO = "desconocido"
 
 
@@ -48,6 +49,13 @@ _KEYWORDS: dict[DocumentType, dict[str, int]] = {
     DocumentType.GUIA_DESPACHO: {
         "GUIA DE DESPACHO": 10,
         "GUÍA DE DESPACHO": 10,
+    },
+    DocumentType.CEDULA: {
+        "CEDULA DE IDENTIDAD": 10,
+        "CÉDULA DE IDENTIDAD": 10,
+        "REPUBLICA DE CHILE": 5,
+        "REPÚBLICA DE CHILE": 5,
+        "SERVICIO DE REGISTRO CIVIL": 8,
     },
 }
 

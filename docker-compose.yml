@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: capturadorm3_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./documentos_ingresados:/app/documentos_ingresados
+      - ./output:/app/output
+      - ./quarantine:/app/quarantine
+      - ./.env:/app/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build: .
+    container_name: capturadorm3_worker
+    command: ["python", "-m", "ocr_tributario", "worker"]
+    volumes:
+      - ./documentos_ingresados:/app/documentos_ingresados
+      - ./output:/app/output
+      - ./quarantine:/app/quarantine
+      - ./.env:/app/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: capturadorm3_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:

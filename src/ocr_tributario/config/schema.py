@@ -11,8 +11,8 @@ class PathsConfig(BaseModel):
     input_dir: Path = Path("documentos_ingresados")
     output_dir: Path = Path("output")
     quarantine_dir: Path = Path("quarantine")
-    tesseract_cmd: Path = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
-    tessdata_prefix: Path = Path("C:/Users/Tranquilidad/.tessdata")
+    tesseract_cmd: Path = Path("tesseract")
+    tessdata_prefix: Path = Path("")
 
 
 class HsvRange(BaseModel):
@@ -50,11 +50,16 @@ class ExcelConfig(BaseModel):
     freeze_header: bool = True
 
 
+class ApiConfig(BaseModel):
+    redis_url: str = "redis://localhost:6379/0"
+
+
 class Settings(BaseModel):
     paths: PathsConfig = Field(default_factory=PathsConfig)
     hsv_red: HsvRange = Field(default_factory=HsvRange)
     ocr: OcrConfig = Field(default_factory=OcrConfig)
     excel: ExcelConfig = Field(default_factory=ExcelConfig)
+    api: ApiConfig = Field(default_factory=ApiConfig)
 
     @field_validator("hsv_red")
     @classmethod

@@ -196,6 +196,39 @@ def parse_dte_fields(
     return fields
 
 
+def to_invoice_record(dte: DTEFields, source_path: Path, ruta_extraccion: str) -> "InvoiceRecord":
+    """Convierte DTEFields en InvoiceRecord para integracion con pipeline legacy."""
+    from ocr_tributario.models.invoice import InvoiceRecord
+    from ocr_tributario.validators.normalizers import normalize_mes
+
+    fecha_iso = dte.fecha_emision.isoformat() if dte.fecha_emision else None
+    record = InvoiceRecord(
+        archivo_origen=source_path.name,
+        mes=normalize_mes(fecha_iso),
+        fecha=fecha_iso,
+        nro_documento=dte.folio,
+        proveedor=dte.razon_social,
+        rut=dte.rut_emisor,
+        total=dte.total,
+        ruta_extraccion=ruta_extraccion,
+        doc_type=dte.doc_type.value if hasattr(dte.doc_type, "value") else str(dte.doc_type),
+        ocr_engine=dte.ocr_engine,
+        ocr_avg_score=dte.ocr_avg_score,
+        completeness=dte.completeness(),
+    )
+    if not dte.has_any_data():
+        record.estado = "REJECTED"
+        record.motivo_revision = "OCR no extrajo ningún campo crítico (imagen ilegible o sin texto)"
+        return record
+    missing = dte.missing_required()
+    if not missing:
+        record.estado = "OK"
+    else:
+        record.estado = "QUARANTINE"
+        record.motivo_revision = f"Faltan: {', '.join(missing)} | Completitud: {dte.completeness():.0%}"
+    return record
+
+
 def _extract_all_ruts(text: str) -> list[str]:
     """Extrae TODOS los RUTs válidos del texto."""
     from ocr_tributario.validators.regex_patterns import extract_rut

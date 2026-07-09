@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CapturadorM3 — Panel OCR Tributario</title>
+  <link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+
+<!-- =================== HEADER =================== -->
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark">📊</span>
+    <div>
+      <h1>CapturadorM3</h1>
+      <p class="brand-sub">OCR Tributario Chileno · DTE → Excel</p>
+    </div>
+  </div>
+
+  <div class="header-status">
+    <span class="status-pill" id="api-status" title="Estado del API">
+      <span class="dot"></span><span id="api-status-text">conectando…</span>
+    </span>
+    <span class="status-mini" id="redis-status" title="Redis (jobs async)">redis: ?</span>
+    <span class="status-mini" id="db-status" title="Base de datos">db: ?</span>
+    <span class="status-mini" id="version-info">v—</span>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn-ghost" id="btn-validate-rut" title="Validador de RUT">
+      🔍 Validar RUT
+    </button>
+  </div>
+</header>
+
+
+<!-- =================== LAYOUT PRINCIPAL =================== -->
+<div class="app-shell">
+
+  <!-- ---------- MAIN ---------- -->
+  <main class="app-main">
+
+    <!-- Indicador de pasos -->
+    <nav class="stepper" aria-label="Pasos del flujo">
+      <div class="step active" data-step="1"><span class="step-num">1</span><span>Cargar</span></div>
+      <div class="step-connector"></div>
+      <div class="step" data-step="2"><span class="step-num">2</span><span>Procesar</span></div>
+      <div class="step-connector"></div>
+      <div class="step" data-step="3"><span class="step-num">3</span><span>Revisar</span></div>
+      <div class="step-connector"></div>
+      <div class="step" data-step="4"><span class="step-num">4</span><span>Entregar</span></div>
+    </nav>
+
+    <!-- ========== PASO 1: CARGAR ========== -->
+    <section class="card step-card active" id="step-1">
+      <header class="card-head">
+        <h2>1 · Carga tus boletas o facturas</h2>
+        <p>Suelta los archivos aquí o haz click para seleccionarlos. Acepta PDF, JPG, PNG, WebP y TIFF.</p>
+      </header>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Subir archivos">
+        <div class="dz-icon">📂</div>
+        <div class="dz-title">Arrastra archivos aquí</div>
+        <div class="dz-sub">o haz click para seleccionar</div>
+        <div class="dz-formats">PDF · JPG · PNG · WebP · TIFF · hasta 100 archivos por lote</div>
+        <input id="file-input" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif" hidden/>
+      </div>
+
+      <!-- Lista de archivos seleccionados -->
+      <div class="file-list-wrap" id="file-list-wrap" hidden>
+        <div class="file-list-head">
+          <strong id="file-count-label">0 archivos</strong>
+          <span class="file-list-meta" id="file-list-meta"></span>
+          <div class="file-list-actions">
+            <label class="mode-toggle">
+              <input type="checkbox" id="mode-async"/>
+              <span>Modo asíncrono (worker + Excel)</span>
+            </label>
+            <button class="btn-ghost btn-sm" id="btn-clear">🗑 Limpiar</button>
+            <button class="btn-primary" id="btn-process" disabled>⚡ Procesar ahora</button>
+          </div>
+        </div>
+        <ul class="file-list" id="file-list"></ul>
+      </div>
+    </section>
+
+    <!-- ========== PASO 2: PROCESAR ========== -->
+    <section class="card step-card" id="step-2">
+      <header class="card-head">
+        <h2>2 · Procesando documentos</h2>
+        <p>Extrayendo RUT, folio, fecha, proveedor y total de cada archivo. Esto puede tardar unos segundos por documento.</p>
+      </header>
+
+      <div class="processing-block">
+        <div class="processing-status">
+          <div class="spinner"></div>
+          <div class="processing-text">
+            <div class="processing-main" id="processing-main">Iniciando…</div>
+            <div class="processing-sub" id="processing-sub">Job ID: —</div>
+          </div>
+        </div>
+
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+
+        <div class="progress-meta">
+          <span id="progress-count">0 / 0</span>
+          <span id="progress-pct">0%</span>
+        </div>
+
+        <div class="log-stream" id="log-stream" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- ========== PASO 3: REVISAR ========== -->
+    <section class="card step-card" id="step-3">
+      <header class="card-head">
+        <h2>3 · Revisa los resultados</h2>
+        <p>Haz click en cualquier fila para ver todos los campos extraídos. Los documentos marcados en ámbar requieren revisión manual.</p>
+      </header>
+
+      <div class="filter-bar">
+        <input type="search" id="search-input" placeholder="Buscar por archivo, RUT o proveedor…" class="search-input"/>
+        <div class="filter-chips">
+          <button class="chip active" data-filter="all">Todos <span class="chip-count" id="count-all">0</span></button>
+          <button class="chip chip-ok" data-filter="OK">✓ OK <span class="chip-count" id="count-ok">0</span></button>
+          <button class="chip chip-q" data-filter="QUARANTINE">⚠ Quarantine <span class="chip-count" id="count-q">0</span></button>
+          <button class="chip chip-rj" data-filter="REJECTED">✗ Rechazados <span class="chip-count" id="count-rj">0</span></button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th>Archivo</th>
+              <th>Tipo</th>
+              <th>Fecha</th>
+              <th>Folio</th>
+              <th>RUT</th>
+              <th>Proveedor</th>
+              <th class="num">Total</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody">
+            <tr class="empty-row"><td colspan="9">Aún no hay resultados.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ========== PASO 4: ENTREGAR ========== -->
+    <section class="card step-card" id="step-4">
+      <header class="card-head">
+        <h2>4 · Entrega tu informe de rendición</h2>
+        <p>Descarga el Excel listo para entregar a contabilidad. Los documentos en cuarentena aparecen en una hoja aparte para revisión manual.</p>
+      </header>
+
+      <div class="delivery-grid">
+        <div class="metric-card metric-ok">
+          <div class="metric-value" id="metric-ok">0</div>
+          <div class="metric-label">✓ Extracción completa</div>
+          <div class="metric-sum" id="metric-ok-sum">$0</div>
+        </div>
+        <div class="metric-card metric-q">
+          <div class="metric-value" id="metric-q">0</div>
+          <div class="metric-label">⚠ Requieren revisión</div>
+          <div class="metric-sum" id="metric-q-sum">$0</div>
+        </div>
+        <div class="metric-card metric-rj">
+          <div class="metric-value" id="metric-rj">0</div>
+          <div class="metric-label">✗ Rechazados</div>
+          <div class="metric-sum">&nbsp;</div>
+        </div>
+        <div class="metric-card metric-total">
+          <div class="metric-value" id="metric-total">0</div>
+          <div class="metric-label">Total documentos</div>
+          <div class="metric-sum" id="metric-total-sum">$0</div>
+        </div>
+      </div>
+
+      <div class="delivery-actions">
+        <button class="btn-primary btn-lg" id="btn-download-excel" disabled>
+          ⬇ Descargar Excel de rendición
+        </button>
+        <button class="btn-ghost btn-lg" id="btn-new-batch">
+          + Procesar otro lote
+        </button>
+      </div>
+
+      <div class="quarantine-section" id="quarantine-section" hidden>
+        <h3>📋 Documentos para revisión manual</h3>
+        <p class="quarantine-help">Estos documentos quedaron en <strong>quarantine</strong> porque faltan campos críticos (RUT, fecha o total). Ábrelos, complétalos a mano y vuelve a subirlos o actualízalos directamente.</p>
+        <ul class="quarantine-list" id="quarantine-list"></ul>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- ---------- SIDEBAR: HISTORIAL ---------- -->
+  <aside class="app-sidebar">
+    <div class="sidebar-head">
+      <h3>Historial de jobs</h3>
+      <button class="btn-ghost btn-xs" id="btn-refresh-jobs" title="Refrescar">↻</button>
+    </div>
+    <ul class="jobs-list" id="jobs-list">
+      <li class="jobs-empty">Sin jobs aún.</li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <a href="/docs" target="_blank" class="sidebar-link">📡 Swagger API</a>
+      <a href="/api/v1/health" target="_blank" class="sidebar-link">💚 Health</a>
+    </div>
+  </aside>
+
+</div>
+
+
+<!-- =================== MODAL DETALLE =================== -->
+<div class="modal-backdrop" id="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <header class="modal-head">
+      <h3 id="modal-title">Detalle del documento</h3>
+      <button class="modal-close" id="modal-close" aria-label="Cerrar">✕</button>
+    </header>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+
+<!-- =================== MODAL RUT =================== -->
+<div class="modal-backdrop" id="rut-modal" hidden>
+  <div class="modal modal-sm" role="dialog" aria-modal="true">
+    <header class="modal-head">
+      <h3>🔍 Validador de RUT (Módulo 11)</h3>
+      <button class="modal-close" id="rut-modal-close" aria-label="Cerrar">✕</button>
+    </header>
+    <div class="modal-body">
+      <p class="muted">Pega un RUT (con o sin formato) y verifica al instante si el dígito verificador es válido.</p>
+      <div class="rut-input-row">
+        <input id="rut-input" type="text" placeholder="12.345.678-5" autocomplete="off"/>
+        <button class="btn-primary" id="btn-validate">Validar</button>
+      </div>
+      <div id="rut-result" class="rut-result"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- =================== TOASTS =================== -->
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+
+<!-- =================== FOOTER =================== -->
+<footer class="app-footer">
+  <span>CapturadorM3 · v0.1.0 · FastAPI + EasyOCR + Tesseract + arq/Redis + SQLite</span>
+  <span class="footer-right">Hecho con ❤ para rendiciones chilenas 🇨🇱</span>
+</footer>
+
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>

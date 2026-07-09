@@ -16,7 +16,7 @@ from loguru import logger
 from PIL import Image
 
 from ocr_tributario.config.schema import OcrConfig
-from ocr_tributario.services.ocr_easy import OCRLine, OCRResult
+from ocr_tributario.services.ocr_paddle import OCRLine, OCRResult
 
 
 def _build_tesseract_config(cfg: OcrConfig, psm: int | None = None) -> str:
@@ -101,7 +101,7 @@ class OCRTesseract:
         if isinstance(image_path_or_array, np.ndarray):
             arr = image_path_or_array
             if len(arr.shape) == 3:
-                from cv2 import cv2
+                import cv2
                 arr = cv2.cvtColor(arr, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(arr)
         else:

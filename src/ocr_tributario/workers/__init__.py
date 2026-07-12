@@ -60,7 +60,11 @@ async def process_job(
         job_id = uuid.uuid4().hex[:12]
 
     # Crear o actualizar job en DB
-    await create_job(job_id, total_files=len(files), metadata={"files": files, "output_path": output_path})
+    import sqlite3
+    try:
+        await create_job(job_id, total_files=len(files), metadata={"files": files, "output_path": output_path})
+    except sqlite3.IntegrityError:
+        pass  # El job ya fue creado por la API
     await update_job(job_id, status="processing")
 
     records: list[InvoiceRecord] = []
@@ -103,6 +107,7 @@ async def process_job(
             ocr_engine=rec.ruta_extraccion,
             ocr_avg_score=None,
             missing_fields=[],
+            raw_text=getattr(rec, "raw_text", None),
         )
         await update_job(job_id, processed=processed, failed=failed)
 

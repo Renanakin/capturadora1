@@ -46,3 +46,10 @@ python3.11.zip
 screenshots/
 playwright*.json
 .agents/
+
+# Archivos locales no críticos / temporales
+*.sqlite3
+*.db
+uploads/
+test_dummy.*
+test_async.py

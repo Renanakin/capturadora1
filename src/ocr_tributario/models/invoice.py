@@ -23,6 +23,7 @@ class InvoiceRecord:
     estado: EstadoDocumento = "QUARANTINE"
     motivo_revision: str | None = None
     ruta_extraccion: str | None = None
+    raw_text: str | None = None
     doc_type: str | None = None
     ocr_engine: str | None = None
     ocr_avg_score: float | None = None

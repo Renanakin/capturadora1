@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS job_records (
     ocr_engine TEXT,
     ocr_avg_score REAL,
     missing_fields TEXT,
+    raw_text TEXT,
     FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_records_job ON job_records(job_id);
@@ -64,6 +65,10 @@ async def init_db() -> None:
     """Crea las tablas si no existen."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
+        try:
+            await db.execute("ALTER TABLE job_records ADD COLUMN raw_text TEXT")
+        except Exception:
+            pass  # Ya existe
         await db.commit()
 
 
@@ -173,17 +178,18 @@ async def add_job_record(
     ocr_engine: str | None,
     ocr_avg_score: float | None,
     missing_fields: list[str] | None = None,
+    raw_text: str | None = None,
 ) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """INSERT INTO job_records
                (job_id, archivo, estado, rut, fecha, total, proveedor, folio,
-                doc_type, ocr_engine, ocr_avg_score, missing_fields)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                doc_type, ocr_engine, ocr_avg_score, missing_fields, raw_text)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 job_id, archivo, estado, rut, fecha, total, proveedor, folio,
                 doc_type, ocr_engine, ocr_avg_score,
-                json.dumps(missing_fields or []),
+                json.dumps(missing_fields or []), raw_text
             ),
         )
         await db.commit()
@@ -194,7 +200,7 @@ async def list_job_records(job_id: str) -> list[dict]:
         db.row_factory = aiosqlite.Row
         cur = await db.execute(
             """SELECT archivo, estado, rut, fecha, total, proveedor, folio,
-                      doc_type, ocr_engine, ocr_avg_score, missing_fields
+                      doc_type, ocr_engine, ocr_avg_score, missing_fields, raw_text
                FROM job_records WHERE job_id=? ORDER BY archivo""",
             (job_id,),
         )

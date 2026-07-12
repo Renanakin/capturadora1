@@ -140,6 +140,12 @@ def _record_from_pdf_native(source_path: Path, raw_text: str, ruta: str) -> Invo
     total = extract_total(raw_text)
     folio = extract_folio(raw_text)
     from ocr_tributario.validators.normalizers import extract_provider
+    from ocr_tributario.services.classify import classify_document, DocumentType
+    doc_type = classify_document(raw_text)
+    
+    if doc_type == DocumentType.INVOICE_EXTRANJERA and not rut:
+        rut = "EXTRANJERO"
+
     proveedor = extract_provider(raw_text, rut_canonico=rut)
 
     record = InvoiceRecord(
@@ -151,6 +157,8 @@ def _record_from_pdf_native(source_path: Path, raw_text: str, ruta: str) -> Invo
         total=total,
         proveedor=proveedor,
         ruta_extraccion=ruta,
+        doc_type=doc_type.value if hasattr(doc_type, "value") else str(doc_type),
+        raw_text=raw_text,
     )
     if record.is_valid_for_excel():
         record.estado = "OK"
@@ -234,6 +242,34 @@ def process_one(
             if doc_type == DocumentType.CEDULA:
                 return parse_cedula_fields(ocr_result, source_path.name, f"image_{engine_used}")
 
+            # --- NUEVO: Motor de Plantillas ---
+            from ocr_tributario.services.template_engine import TemplateEngine
+            engine = TemplateEngine()
+            template_match = engine.match_and_extract(ocr_result.full_text)
+            
+            if template_match:
+                from ocr_tributario.validators.normalizers import normalize_mes
+                d = template_match.get("fecha_emision")
+                fecha_iso = d.isoformat() if d else None
+                rec = InvoiceRecord(
+                    archivo_origen=source_path.name,
+                    fecha=fecha_iso,
+                    mes=normalize_mes(fecha_iso),
+                    rut=template_match.get("rut"),
+                    proveedor=template_match.get("proveedor"),
+                    total=template_match.get("total"),
+                    doc_type=doc_type.value if hasattr(doc_type, "value") else str(doc_type),
+                    ruta_extraccion=f"image_{engine_used}",
+                    raw_text=ocr_result.full_text
+                )
+                if rec.is_valid_for_excel():
+                    rec.estado = "OK"
+                    rec.motivo_revision = f"Plantilla Automática: {template_match['proveedor']}"
+                else:
+                    rec.estado = "QUARANTINE"
+                    rec.motivo_revision = "Plantilla detectada pero faltan campos críticos"
+                return rec
+
             anchor = None
             try:
                 anchor = extract_by_anchors(pre, settings.ocr)
@@ -241,7 +277,28 @@ def process_one(
                 logger.debug(f"anchor extraction failed: {exc}")
 
             dte = parse_dte_fields(doc_type, ocr_result, anchor_result=anchor)
-            return _dte_to_invoice_record(source_path, dte, f"image_{engine_used}")
+            rec = _dte_to_invoice_record(source_path, dte, f"image_{engine_used}")
+            
+            if rec.estado == "QUARANTINE":
+                logger.info(f"Aplicando rescate IA (Donut) a {source_path.name}")
+                from ocr_tributario.services.donut_kie import extract_with_donut
+                from ocr_tributario.validators.regex_patterns import _parse_money, extract_date
+                ai_data = extract_with_donut(source_path)
+                
+                if not getattr(rec, "total", None) and "total_price" in ai_data:
+                    t = _parse_money(str(ai_data["total_price"]))
+                    if t:
+                        rec.total = t
+                if not getattr(rec, "fecha", None) and "date" in ai_data:
+                    d = extract_date(str(ai_data["date"]))
+                    if d:
+                        rec.fecha = d.isoformat()
+                        
+                if rec.is_valid_for_excel():
+                    rec.estado = "OK"
+                    rec.motivo_revision = "Rescatado por IA (Donut)"
+            
+            return rec
 
         return InvoiceRecord(
             archivo_origen=source_path.name,

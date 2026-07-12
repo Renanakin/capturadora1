@@ -124,6 +124,7 @@ async def upload_batch(files: list[UploadFile] = File(...)):
     await create_job(job_id, total_files=len(files))
 
     records: list[DTEResponseSchema | CedulaResponseSchema] = []
+    raw_records = []
     processed = 0
     failed = 0
 
@@ -137,6 +138,7 @@ async def upload_batch(files: list[UploadFile] = File(...)):
             with target.open("wb") as fdisk:
                 fdisk.write(await f.read())
             rec = process_one(target, settings)
+            raw_records.append(rec)
             dte = _record_to_schema(rec)
             records.append(dte)
             
@@ -151,7 +153,7 @@ async def upload_batch(files: list[UploadFile] = File(...)):
                 estado=rec.estado, rut=rut_to_save, fecha=fecha_to_save,
                 total=total_to_save, proveedor=proveedor_to_save, folio=folio_to_save,
                 doc_type=str(dte.doc_type.value) if hasattr(dte, 'doc_type') else "cedula", ocr_engine=rec.ruta_extraccion,
-                ocr_avg_score=0.0, missing_fields=[],
+                ocr_avg_score=0.0, missing_fields=[], raw_text=getattr(rec, "raw_text", None),
             )
             if rec.estado == "REJECTED":
                 failed += 1
@@ -166,7 +168,19 @@ async def upload_batch(files: list[UploadFile] = File(...)):
             except Exception:
                 pass
 
-    await update_job(job_id, status="done", processed=processed, failed=failed)
+    output_path = None
+    if raw_records:
+        from ocr_tributario.exporters.excel_writer import export_records
+        output_dir = Path(settings.paths.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        out = output_dir / f"Rendicion_Job_{job_id}.xlsx"
+        try:
+            export_records(raw_records, output_path=out, settings=settings)
+            output_path = str(out)
+        except Exception as exc:
+            logger.exception(f"Error generando Excel para sync job {job_id}: {exc}")
+
+    await update_job(job_id, status="done", processed=processed, failed=failed, output_path=output_path)
     return BatchUploadResponse(
         job_id=job_id,
         total=len(files),
@@ -187,7 +201,7 @@ async def enqueue(files: list[UploadFile] = File(...)):
         raise HTTPException(status_code=400, detail="Sin archivos")
 
     import redis.asyncio as _redis
-    from arq.connections import ArqRedis, RedisSettings
+    from arq.connections import create_pool, RedisSettings
     import urllib.parse
     
     url = load_settings().api.redis_url
@@ -237,10 +251,11 @@ async def enqueue(files: list[UploadFile] = File(...)):
 
     parsed = urllib.parse.urlparse(url)
     redis_settings = RedisSettings(host=parsed.hostname or "localhost", port=parsed.port or 6379)
-    arq_client = await ArqRedis.create(redis_settings)
+    arq_client = await create_pool(redis_settings)
     try:
         await arq_client.enqueue_job(
             "process_job",
+            _queue_name="ocr-jobs",
             files=saved_paths,
             job_id=job_id,
             output_path=str(output_path),

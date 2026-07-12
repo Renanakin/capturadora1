@@ -73,6 +73,7 @@ class DTEFields:
             DocumentType.NOTA_CREDITO: ["folio", "rut_emisor", "razon_social", "fecha_emision", "total"],
             DocumentType.GUIA_DESPACHO: ["folio", "rut_emisor", "razon_social", "fecha_emision"],
             DocumentType.DTE_GENERICO: ["rut_emisor", "fecha_emision", "total"],
+            DocumentType.INVOICE_EXTRANJERA: ["fecha_emision", "total"],
             # DESCONOCIDO: requiere al menos 1 campo crítico para no quedar como "OK vacío"
             DocumentType.DESCONOCIDO: ["rut_emisor", "fecha_emision", "total"],
         }.get(self.doc_type, [])
@@ -168,6 +169,11 @@ def parse_dte_fields(
                 fields.rut_emisor_score = 0.7
 
     # Campos específicos por tipo
+    if doc_type == DocumentType.INVOICE_EXTRANJERA:
+        if not fields.rut_emisor:
+            fields.rut_emisor = "EXTRANJERO"
+            fields.rut_emisor_score = 1.0
+
     if doc_type == DocumentType.FACTURA_ELECTRONICA:
         # Factura tiene RUT receptor (segundo RUT distinto al emisor)
         all_ruts = _extract_all_ruts(text)
@@ -215,6 +221,7 @@ def to_invoice_record(dte: DTEFields, source_path: Path, ruta_extraccion: str) -
         ocr_engine=dte.ocr_engine,
         ocr_avg_score=dte.ocr_avg_score,
         completeness=dte.completeness(),
+        raw_text=dte.raw_text,
     )
     if not dte.has_any_data():
         record.estado = "REJECTED"

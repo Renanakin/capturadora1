@@ -21,6 +21,7 @@ class DocumentType(str, Enum):
     GUIA_DESPACHO = "guia_despacho"
     DTE_GENERICO = "dte_generico"
     CEDULA = "cedula"
+    INVOICE_EXTRANJERA = "invoice_extranjera"
     DESCONOCIDO = "desconocido"
 
 
@@ -56,6 +57,11 @@ _KEYWORDS: dict[DocumentType, dict[str, int]] = {
         "REPUBLICA DE CHILE": 5,
         "REPÚBLICA DE CHILE": 5,
         "SERVICIO DE REGISTRO CIVIL": 8,
+    },
+    DocumentType.INVOICE_EXTRANJERA: {
+        "INVOICE": 10,
+        "RECEIPT": 10,
+        "GOOGLE PLAY": 10,
     },
 }
 
@@ -118,4 +124,5 @@ def is_dte(doc_type: DocumentType) -> bool:
         DocumentType.NOTA_CREDITO,
         DocumentType.GUIA_DESPACHO,
         DocumentType.DTE_GENERICO,
+        DocumentType.INVOICE_EXTRANJERA,
     }

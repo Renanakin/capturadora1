@@ -25,6 +25,17 @@ _MONTHS_ES = {
     "oct": 10, "octubre": 10,
     "nov": 11, "noviembre": 11,
     "dic": 12, "diciembre": 12,
+    "jan": 1, "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
 }
 
 _MONTHS_ORDERED = sorted(_MONTHS_ES.keys(), key=len, reverse=True)
@@ -32,6 +43,13 @@ _MONTH_TEXT = re.compile(
     r"\b(\d{1,2})\s+(?:de\s+)?("
     + "|".join(re.escape(k) for k in _MONTHS_ORDERED)
     + r")\b(?:\s+(?:de\s+)?(\d{2,4}))?",
+    re.IGNORECASE,
+)
+
+_MONTH_TEXT_EN = re.compile(
+    r"\b("
+    + "|".join(re.escape(k) for k in _MONTHS_ORDERED)
+    + r")\b\s+(\d{1,2})(?:st|nd|rd|th)?[\,\s]+(\d{2,4})",
     re.IGNORECASE,
 )
 
@@ -69,7 +87,20 @@ def extract_date(text: str | None) -> date | None:
             try:
                 return date(y, mo, int(d_str))
             except ValueError:
-                return None
+                pass
+
+    m_en = _MONTH_TEXT_EN.search(text)
+    if m_en:
+        mo_name, d_str, y_str = m_en.groups()
+        mo = _MONTHS_ES.get(mo_name.lower())
+        if mo and (1 <= int(d_str) <= 31):
+            y = int(y_str)
+            if y < 100:
+                y += 2000 if y < 70 else 1900
+            try:
+                return date(y, mo, int(d_str))
+            except ValueError:
+                pass
 
     return None
 
@@ -77,6 +108,8 @@ def extract_date(text: str | None) -> date | None:
 _TOTAL_PATTERNS = [
     re.compile(r"total\s*[:\$]?\s*\$?\s*([\d\.\,]+)", re.IGNORECASE),
     re.compile(r"\bTOTAL\s+([\d\.\,]+)"),
+    re.compile(r"(?:monto|total)\s+a\s+pagar\s*[:\$]?\s*\$?\s*([\d\.\,]+)", re.IGNORECASE),
+    re.compile(r"(?<![A-Za-z0-9])\$\s*([\d\.\,]{3,})", re.IGNORECASE),
 ]
 
 
@@ -92,21 +125,22 @@ def extract_total(text: str | None) -> int | None:
 
 
 def _parse_money(raw: str) -> int | None:
-    raw = raw.strip()
+    raw = raw.strip().replace(" ", "")
     if not raw:
         return None
-    # Caso CLP "1.234.567" o "1234567" -> quitar puntos si actúa como miles
-    if "." in raw and "," in raw:
-        # formato "1.234,56" -> coma decimal (no es CLP entero, pero limpiamos)
-        raw = raw.replace(".", "").replace(",", ".")
-    elif "," in raw and "." not in raw:
-        # "1234,56" -> decimal
-        raw = raw.replace(",", ".")
-    else:
-        # "1.234.567" -> miles
-        raw = raw.replace(".", "")
+        
+    import re
+    # Si termina con .XX o ,XX (exactamente 2 dígitos), quitamos los centavos.
+    if re.search(r'[\.\,]\d{2}$', raw):
+        raw = raw[:-3]
+    # O si termina con .X o ,X (1 dígito)
+    elif re.search(r'[\.\,]\d{1}$', raw):
+        raw = raw[:-2]
+        
+    raw = raw.replace(".", "").replace(",", "")
+    
     try:
-        return int(float(raw))
+        return int(raw)
     except ValueError:
         return None
 
@@ -137,25 +171,41 @@ def extract_folio(text: str | None) -> int | None:
     return None
 
 
-# RUT estricto: solo matchea cuando viene precedido de "RUT" (con o sin puntos)
 _RUT_INLINE = re.compile(
     r"R\.?U\.?T\.?\s*[:N°ºo\.]*\s*"
     r"(\d{1,2}\.?\d{3}\.?\d{3}-[0-9Kk])",
     re.IGNORECASE,
 )
 
+# RUT fallback: cualquier patrón de RUT sin necesidad de etiqueta explícita
+_RUT_FALLBACK = re.compile(
+    r"\b(\d{1,2}\.?\d{3}\.?\d{3}-[0-9Kk])\b",
+    re.IGNORECASE,
+)
+
 
 def extract_rut(text: str | None) -> str | None:
-    """Encuentra y valida el primer RUT explícito en el texto.
+    """Encuentra y valida el primer RUT en el texto.
 
-    Solo matchea cuando hay una marca 'RUT'/'R.U.T' previa (reduce falsos
-    positivos con teléfonos u otros números).
+    Primero busca con marca explícita 'RUT'/'R.U.T' previa (reduce falsos
+    positivos). Si no encuentra, hace fallback a cualquier patrón con
+    formato RUT que apruebe la validación matemática módulo 11.
     """
     if not text:
         return None
+        
+    # 1. Búsqueda explícita (más segura)
     for m in _RUT_INLINE.finditer(text):
         candidate = m.group(1)
         canonico = validate_rut(candidate)
         if canonico:
             return canonico
+            
+    # 2. Fallback: buscar cualquier patrón de RUT válido
+    for m in _RUT_FALLBACK.finditer(text):
+        candidate = m.group(1)
+        canonico = validate_rut(candidate)
+        if canonico:
+            return canonico
+            
     return None

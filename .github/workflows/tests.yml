@@ -1,0 +1,68 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+      - "refactor/**"
+      - "docs/**"
+      - "chore/**"
+  pull_request:
+    branches:
+      - main
+
+# Cancela runs previos cuando hay un push nuevo a la misma rama/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+
+      - name: Instalar Tesseract OCR (español)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-spa
+          tesseract --version
+
+      - name: Instalar dependencias Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Verificar versión
+        run: |
+          python --version
+          tesseract --version 2>&1 | head -3
+          pip show paddleocr 2>/dev/null | head -3 || echo "(paddleocr no instalado)"
+
+      - name: Correr tests
+        env:
+          # Ruta de modelos de Tesseract (necesario para tests que importan el paquete)
+          TESSDATA_PREFIX: /usr/share/tesseract-ocr/4.00/tessdata/
+          PYTHONPATH: src
+        run: |
+          python -m pytest tests/ -v --tb=short
+
+      - name: Resumen
+        if: always()
+        run: |
+          echo "Resultado: ${{ job.status }}"

@@ -85,6 +85,8 @@ async def upload_single(file: UploadFile = File(...)):
     try:
         await create_job(job_id, total_files=1, metadata={"original_name": file.filename})
         rec = process_one(target, settings)
+        # Override UUID-based name with original filename for UI display
+        rec.archivo_origen = file.filename
         dte = _record_to_schema(rec)
         
         rut_to_save = rec.rut
@@ -139,6 +141,8 @@ async def upload_batch(files: list[UploadFile] = File(...)):
             with target.open("wb") as fdisk:
                 fdisk.write(await f.read())
             rec = process_one(target, settings)
+            # Override UUID-based name with original filename for UI display
+            rec.archivo_origen = f.filename
             raw_records.append(rec)
             dte = _record_to_schema(rec)
             records.append(dte)

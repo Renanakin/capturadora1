@@ -7,7 +7,7 @@ Este documento resume las modificaciones realizadas, las pruebas de flujo comple
 ## 🎥 Grabación de la Nueva Experiencia de Usuario
 A continuación se muestra el video de la simulación del navegador interactuando con la interfaz rediseñada (procesamiento automático al cargar y panel lateral deslizable):
 
-![Video de Nueva Experiencia](workflow_redesign_demo_1784339505596.webp)
+![Video de Nueva Experiencia](/C:/Users/Tranquilidad/.gemini/antigravity-ide/brain/f9ca4bb9-7290-4dac-946b-3e72c38ebc30/workflow_redesign_demo_1784339505596.webp)
 
 ---
 
@@ -37,9 +37,9 @@ A continuación se muestra el video de la simulación del navegador interactuand
 ### 1. Panel Lateral Dual en Acción (Paso 3)
 Al hacer clic en un registro en cuarentena, se desliza el panel lateral mostrando el PDF en tiempo real a la izquierda y el formulario de corrección / auto-aprendizaje a la derecha.
 
-![Drawer de Detalle Lado a Lado](drawer_view_1784339984845.png)
+![Drawer de Detalle Lado a Lado](/C:/Users/Tranquilidad/.gemini/antigravity-ide/brain/f9ca4bb9-7290-4dac-946b-3e72c38ebc30/drawer_view_1784339984845.png)
 
 ### 2. Tablero de Control y Botón de Exportación en Paso 3
 La tabla muestra el botón **Exportar Excel** activo y de fácil acceso al finalizar el procesamiento.
 
-![Botón de Exportar en Paso 3](main_table_1784340012685.png)
+![Botón de Exportar en Paso 3](/C:/Users/Tranquilidad/.gemini/antigravity-ide/brain/f9ca4bb9-7290-4dac-946b-3e72c38ebc30/main_table_1784340012685.png)

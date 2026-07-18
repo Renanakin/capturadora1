@@ -1,9 +1,15 @@
 proveedores:
-  - nombre: "Google Play"
-    keywords_identificacion:
-      - "Google Play"
-      - "Play Store"
-    rut_defecto: "EXTRANJERO"
-    reglas:
-      total: "regex: Total\\s*\\$?([\\d\\.]+)"
-      fecha: "regex: del (\\d{1,2} [a-z]{3} \\d{4})"
+- nombre: Google Play
+  keywords_identificacion:
+  - Google Play
+  - Play Store
+  rut_defecto: EXTRANJERO
+  reglas:
+    total: 'regex: Total\s*\$?([\d\.]+)'
+    fecha: 'regex: del (\d{1,2} [a-z]{3} \d{4})'
+- nombre: Sasco spa
+  keywords_identificacion:
+  - Sasco spa
+  rut_defecto: 76.192.083-9
+  reglas:
+    total: 'regex: Total\ S\ :\s*([\d\.]+)'

@@ -56,7 +56,7 @@ async function api(path, opts = {}) {
   const r = await fetch(API + path, opts);
   if (!r.ok) {
     let detail = r.statusText;
-    try { const j = await r.json(); detail = j.detail || JSON.stringify(j); } catch (_) {}
+    try { const j = await r.json(); detail = j.detail || JSON.stringify(j); } catch (_) { }
     throw new Error(`${r.status} · ${detail}`);
   }
   return r.json();
@@ -304,7 +304,7 @@ async function processSync(formData) {
   const dt = ((performance.now() - t0) / 1000).toFixed(1);
 
   state.jobId = j.job_id;
-  state.records = j.records || [];
+  state.records = (j.records || []).map(normalizeRecord);
 
   setProgress(100, `¡Listo! ${state.records.length} documentos procesados`, `Job ${j.job_id} · ${dt}s`);
   $('progress-fill').classList.add('done');
@@ -400,6 +400,36 @@ function finishJob() {
 /* ============================================================
    RESULTS (Paso 3)
    ============================================================ */
+
+/**
+ * Normaliza un registro proveniente de la DB (campos snake_case planos)
+ * al formato que espera el frontend (campos del DTEResponseSchema).
+ * Si el registro ya tiene los campos del frontend, no los sobreescribe.
+ */
+function normalizeRecord(r) {
+  return {
+    archivo:        r.archivo        || r.archivo_origen || '—',
+    doc_type:       r.doc_type       || null,
+    rut_emisor:     r.rut_emisor     || r.rut            || null,
+    razon_social:   r.razon_social   || r.proveedor      || null,
+    folio:          r.folio          ?? null,
+    fecha_emision:  r.fecha_emision  || r.fecha          || null,
+    total:          r.total          ?? null,
+    neto:           r.neto           ?? null,
+    iva:            r.iva            ?? null,
+    exento:         r.exento         ?? null,
+    giro:           r.giro           || null,
+    rut_receptor:   r.rut_receptor   || null,
+    ocr_engine:     r.ocr_engine     || null,
+    ocr_avg_score:  r.ocr_avg_score  ?? null,
+    estado:         r.estado         || 'QUARANTINE',
+    motivo_revision:r.motivo_revision|| null,
+    completeness:   r.completeness   ?? null,
+    missing:        r.missing        || r.missing_fields || [],
+    raw_text:       r.raw_text       || null,
+  };
+}
+
 function renderResults() {
   const tbody = $('results-tbody');
   const counts = { all: state.records.length, OK: 0, QUARANTINE: 0, REJECTED: 0 };
@@ -415,9 +445,8 @@ function renderResults() {
 
   const visible = getFilteredRecords();
   if (visible.length === 0) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${
-      state.records.length === 0 ? 'Aún no hay resultados.' : 'Sin resultados para el filtro actual.'
-    }</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${state.records.length === 0 ? 'Aún no hay resultados.' : 'Sin resultados para el filtro actual.'
+      }</td></tr>`;
     return;
   }
 
@@ -513,9 +542,8 @@ function openDetail(rec) {
     return `
       <div class="detail-field">
         <div class="detail-label">${escapeHTML(label)}</div>
-        <div class="detail-value ${mono ? 'mono' : ''} ${empty ? 'empty' : ''}">${
-          empty ? '— no detectado —' : escapeHTML(typeof value === 'number' && label.match(/Total|Neto|IVA|Exento/) ? fmtCLP(value) : value)
-        }</div>
+        <div class="detail-value ${mono ? 'mono' : ''} ${empty ? 'empty' : ''}">${empty ? '— no detectado —' : escapeHTML(typeof value === 'number' && label.match(/Total|Neto|IVA|Exento/) ? fmtCLP(value) : value)
+      }</div>
       </div>
     `;
   }).join('');
@@ -536,10 +564,10 @@ function openDetail(rec) {
       <div style="flex: 1; border-right: 1px solid var(--c-border); padding-right: 24px; display: flex; flex-direction: column;">
         <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--c-text-soft);">Visualización del Documento</h4>
         <div style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--c-border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center;">
-          ${isPdf 
-            ? `<iframe src="${fileUrl}" style="width:100%; height:100%; border:none;"></iframe>`
-            : `<img src="${fileUrl}" style="max-width:100%; max-height:100%; object-fit: contain;"/>`
-          }
+          ${isPdf
+      ? `<iframe src="${fileUrl}" style="width:100%; height:100%; border:none;"></iframe>`
+      : `<img src="${fileUrl}" style="max-width:100%; max-height:100%; object-fit: contain;"/>`
+    }
         </div>
       </div>
 
@@ -589,24 +617,25 @@ function openDetail(rec) {
         const total = parseInt(totalStr, 10);
         const rut = $('corr-rut').value.trim();
         const fecha = $('corr-fecha').value.trim();
-        
+
         if (!prov) {
           toast("El proveedor es obligatorio para aprender la regla", "err");
           return;
         }
-        
+
         btn.disabled = true;
         btn.textContent = "Aprendiendo y Guardando...";
-        
+
         try {
-          const payload = { 
-            proveedor: prov, 
-            total: isNaN(total) ? null : total, 
-            rut: rut || null, 
-            fecha: fecha || null 
+          const payload = {
+            proveedor: prov,
+            total: isNaN(total) ? null : total,
+            rut: rut || null,
+            fecha: fecha || null
           };
-          const res = await api(`/api/v1/jobs/${state.jobId}/records/${rec.archivo}/correct`, {
+          const res = await api(`/api/v1/jobs/${state.jobId}/records/${encodeURIComponent(rec.archivo)}/correct`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
           toast(res.message || "Regla aprendida con éxito", "ok", 3000);
@@ -760,7 +789,7 @@ async function loadJobs() {
     list.innerHTML = jobs.map((j) => {
       const cls = j.status === 'done' ? 'ok'
         : j.status === 'failed' ? 'err'
-        : j.status === 'processing' ? 'warn' : '';
+          : j.status === 'processing' ? 'warn' : '';
       const date = new Date(j.created_at).toLocaleString('es-CL', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
       });
@@ -795,7 +824,7 @@ async function loadJob(jobId) {
     const j = await api(`/api/v1/jobs/${jobId}`);
     state.jobId = j.id;
     state.lastJobStatus = j;
-    state.records = j.records || [];
+    state.records = (j.records || []).map(normalizeRecord);
 
     // Marcar como activo en sidebar
     document.querySelectorAll('.job-item').forEach((el) => {
@@ -809,18 +838,6 @@ async function loadJob(jobId) {
       renderDelivery();
       markStepDone(2);
       goToStep(3);
-      
-      const btnDl = $('btn-download-excel');
-      const btnDlP3 = $('btn-download-excel-p3');
-      if (btnDl) {
-        btnDl.disabled = false;
-        btnDl.dataset.jobId = jobId;
-      }
-      if (btnDlP3) {
-        btnDlP3.disabled = false;
-        btnDlP3.dataset.jobId = jobId;
-      }
-      
       toast(`Job ${jobId} cargado`, 'ok', 2000);
     } else if (j.status === 'processing' || j.status === 'queued') {
       // Reanudar polling si aún está corriendo

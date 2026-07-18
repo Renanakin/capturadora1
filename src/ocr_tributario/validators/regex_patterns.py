@@ -8,8 +8,11 @@ from datetime import date, datetime
 from ocr_tributario.validators.rut import validate_rut
 
 _DATE_PATTERNS = [
-    # dd/mm/yyyy o dd-mm-yyyy o dd.mm.yyyy
-    re.compile(r"\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b"),
+    # dd/mm/yyyy o dd-mm-yyyy o dd.mm.yyyy (con lookahead de no-dígito
+    # para tolerar concatenación con letras, ej. "25/04/2022AID:...").
+    re.compile(r"\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?=[^\d]|$)"),
+    # dd/mm/yyyy + hora concatenada "25/04/202209:29:50" (Transbank)
+    re.compile(r"\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\d{2}:\d{2}:\d{2}"),
 ]
 
 _MONTHS_ES = {
@@ -40,9 +43,18 @@ _MONTHS_ES = {
 
 _MONTHS_ORDERED = sorted(_MONTHS_ES.keys(), key=len, reverse=True)
 _MONTH_TEXT = re.compile(
-    r"\b(\d{1,2})\s+(?:de\s+)?("
+    r"\b(\d{1,2})\s*(?:de\s+)?("
     + "|".join(re.escape(k) for k in _MONTHS_ORDERED)
-    + r")\b(?:\s+(?:de\s+)?(\d{2,4}))?",
+    + r")\b(?:\s*(?:de\s+)?(?:del?\s+)?(\d{2,4}))?",
+    re.IGNORECASE,
+)
+
+# dd-mmm-yyyy / dd-mmm-yy con guión como separador (facturas chilenas:
+# "Fecha de Emisión : 01-dic-2025"). El guión no se interpreta como signo.
+_DATE_TEXT_GUION = re.compile(
+    r"\b(\d{1,2})[\-\u2013\u2014]("
+    + "|".join(re.escape(k) for k in _MONTHS_ORDERED)
+    + r")[\-\u2013\u2014](\d{2,4})\b",
     re.IGNORECASE,
 )
 
@@ -57,7 +69,7 @@ _MONTH_TEXT_EN = re.compile(
 def extract_date(text: str | None) -> date | None:
     """Devuelve la primera fecha válida en formato YYYY-MM-DD.
 
-    Acepta dd/mm/yyyy y '15 de marzo de 2024'.
+    Acepta dd/mm/yyyy, '15 de marzo de 2024' y '01-dic-2025' (con guión).
     """
     if not text:
         return None
@@ -75,6 +87,20 @@ def extract_date(text: str | None) -> date | None:
                 return date(y, mo, d)
             except ValueError:
                 continue
+
+    # Formato dd-mmm-yyyy con guión (factura Movistar, etc.)
+    m = _DATE_TEXT_GUION.search(text)
+    if m:
+        d_str, mo_name, y_str = m.groups()
+        mo = _MONTHS_ES.get(mo_name.lower())
+        if mo and (1 <= int(d_str) <= 31):
+            y = int(y_str)
+            if y < 100:
+                y += 2000 if y < 70 else 1900
+            try:
+                return date(y, mo, int(d_str))
+            except ValueError:
+                pass
 
     m = _MONTH_TEXT.search(text)
     if m:
@@ -106,9 +132,12 @@ def extract_date(text: str | None) -> date | None:
 
 
 _TOTAL_PATTERNS = [
-    re.compile(r"total\s*[:\$]?\s*\$?\s*([\d\.\,]+)", re.IGNORECASE),
+    # "Total: $1.234" / "Total $1.234" / "Total\n$1.234" / "Total $ :\n1.200"
+    # Tolera OCR confundiendo $ con S, dos puntos, saltos de línea y hasta
+    # 15 caracteres entre "total" y el número.
+    re.compile(r"total\b[^\d]{0,15}?([\d\.\,]{3,})", re.IGNORECASE | re.DOTALL),
     re.compile(r"\bTOTAL\s+([\d\.\,]+)"),
-    re.compile(r"(?:monto|total)\s+a\s+pagar\s*[:\$]?\s*\$?\s*([\d\.\,]+)", re.IGNORECASE),
+    re.compile(r"(?:monto|total)\s+a\s+pagar\b[^\d]{0,15}?([\d\.\,]{3,})", re.IGNORECASE | re.DOTALL),
     re.compile(r"(?<![A-Za-z0-9])\$\s*([\d\.\,]{3,})", re.IGNORECASE),
 ]
 
@@ -155,6 +184,8 @@ _FOLIO_PATTERNS = [
     re.compile(r"\bfolio\s*n[°ºo\*\.]?\s*(\d{1,10})", re.IGNORECASE),
     # Folio suelto precedido por "boleta" o "factura" sin "N°"
     re.compile(r"(?:factura|boleta)\s+(\d{4,10})\b", re.IGNORECASE),
+    # "NRO 1234" / "Nro: 1234" - boletas chilenas
+    re.compile(r"\bNRO\.?\s*[:N°ºo\.]*\s*(\d{2,12})\b", re.IGNORECASE),
 ]
 
 
@@ -173,13 +204,22 @@ def extract_folio(text: str | None) -> int | None:
 
 _RUT_INLINE = re.compile(
     r"R\.?U\.?T\.?\s*[:N°ºo\.]*\s*"
-    r"(\d{1,2}\.?\d{3}\.?\d{3}-[0-9Kk])",
+    r"(\d{1,2}\.?\d{3}\.?\d{3}[\-\u2013\u2014][0-9Kk])",
     re.IGNORECASE,
 )
 
 # RUT fallback: cualquier patrón de RUT sin necesidad de etiqueta explícita
 _RUT_FALLBACK = re.compile(
-    r"\b(\d{1,2}\.?\d{3}\.?\d{3}-[0-9Kk])\b",
+    r"\b(\d{1,2}\.?\d{3}\.?\d{3}[\-\u2013\u2014][0-9Kk])\b",
+    re.IGNORECASE,
+)
+
+# RUT sin DV (caso "RUT: 76.000.000" en boleta Banchile y similares)
+# Solo se aplica cuando hay keyword "RUT" explícita para evitar falsos positivos
+# con cualquier número con formato XX.XXX.XXX.
+_RUT_NO_DV = re.compile(
+    r"R\.?U\.?T\.?\s*[:N°ºo\.]*\s*"
+    r"(\d{1,2}(?:\.\d{3}){1,2})(?![-\dKk])",
     re.IGNORECASE,
 )
 
@@ -189,23 +229,30 @@ def extract_rut(text: str | None) -> str | None:
 
     Primero busca con marca explícita 'RUT'/'R.U.T' previa (reduce falsos
     positivos). Si no encuentra, hace fallback a cualquier patrón con
-    formato RUT que apruebe la validación matemática módulo 11.
+    formato RUT que apruebe la validación matemática módulo 11. Como
+    último recurso acepta un RUT sin DV (e.g. "RUT: 76.000.000" en
+    boletas chilenas) marcado con score bajo por el parser.
     """
     if not text:
         return None
-        
+
     # 1. Búsqueda explícita (más segura)
     for m in _RUT_INLINE.finditer(text):
         candidate = m.group(1)
         canonico = validate_rut(candidate)
         if canonico:
             return canonico
-            
+
     # 2. Fallback: buscar cualquier patrón de RUT válido
     for m in _RUT_FALLBACK.finditer(text):
         candidate = m.group(1)
         canonico = validate_rut(candidate)
         if canonico:
             return canonico
-            
+
+    # 3. Último recurso: RUT explícito sin DV ("RUT: 76.000.000")
+    m = _RUT_NO_DV.search(text)
+    if m:
+        return m.group(1)
+
     return None

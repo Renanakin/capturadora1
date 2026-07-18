@@ -68,6 +68,38 @@ _KEYWORDS: dict[DocumentType, dict[str, int]] = {
 # Marcadores genéricos DTE (cuando no se puede distinguir subtipo)
 _DTE_GENERIC_MARKERS = ("RUT", "FOLIO", "S.I.I", "SII")
 
+# Sustituciones de errores típicos de OCR sobre keywords tributarios.
+# Aplicadas ANTES del matching para tolerar typos como "ELECTRONCA",
+# "TUCTRONCA", "BOLETA LLÉCTRONICA", etc.
+_OCR_TYPO_MAP: list[tuple[re.Pattern[str], str]] = [
+    # ELECTRONCA / TUCTRONCA / LLECTRONICA / etc. → ELECTRONICA
+    (re.compile(r"[ELT][Ll]?[EÉ]?[Cc]?[TC]?[TC]?[R]?[OÓ]?[N]?[C][AÁ]", re.IGNORECASE), "ELECTRONICA"),
+    # Normalizar vocales repetidas / acentos
+    (re.compile(r"\bFACTUR[ÁA]\b", re.IGNORECASE), "FACTURA"),
+    (re.compile(r"\bBOLET[ÁA]\b", re.IGNORECASE), "BOLETA"),
+    (re.compile(r"\bCR[EÉ]DIT[OÓ]\b", re.IGNORECASE), "CREDITO"),
+    # Variantes OCR de BOLETA (BOLETA / BOLCTA / BOLTTA)
+    (re.compile(r"\bBO[Ll][CE]?[TC]?[TC]?[AÁ]\b", re.IGNORECASE), "BOLETA"),
+    # Variantes OCR de FACTURA (FASTUNA / FACTURA)
+    (re.compile(r"\bF[AE]S?T?U[RN][AÁ]\b", re.IGNORECASE), "FACTURA"),
+    # Quitar espacios entre palabras clave (FASTUNA TUCTRONCA → FACTURA ELECTRONICA)
+    (re.compile(r"\s+", re.IGNORECASE), " "),
+]
+
+
+def _normalize_ocr_text(text: str) -> str:
+    """Normaliza typos típicos de OCR para mejorar clasificación.
+
+    No modifica el texto original, solo devuelve una versión "limpia"
+    que se usa para el matching de keywords. El original se conserva
+    en DTEFields.raw_text.
+    """
+    out = text
+    for pattern, repl in _OCR_TYPO_MAP[:-1]:  # último es colapso de espacios
+        out = pattern.sub(repl, out)
+    out = _OCR_TYPO_MAP[-1][0].sub(_OCR_TYPO_MAP[-1][1], out)  # collapse spaces
+    return out
+
 
 def _score_type(text_upper: str, keywords: dict[str, int]) -> int:
     s = 0
@@ -94,10 +126,16 @@ def classify_document(ocr_result: OCRResult | str) -> DocumentType:
         text = ocr_result
 
     text_upper = text.upper()
+    # Aplicar normalización tolerante a OCR (no destructiva sobre original)
+    text_normalized = _normalize_ocr_text(text_upper)
 
     scores: dict[DocumentType, int] = {}
+    # Matchear contra AMBAS versiones: original (keywords exactos)
+    # y normalizada (tolerante a typos OCR).
     for doc_type, keywords in _KEYWORDS.items():
-        scores[doc_type] = _score_type(text_upper, keywords)
+        score_raw = _score_type(text_upper, keywords)
+        score_norm = _score_type(text_normalized, keywords)
+        scores[doc_type] = max(score_raw, score_norm)
 
     # Encontrar el tipo con mayor score
     best_type = max(scores, key=scores.get)  # type: ignore
@@ -108,7 +146,7 @@ def classify_document(ocr_result: OCRResult | str) -> DocumentType:
         return best_type
 
     # Si no hay match fuerte pero hay marcadores DTE, clasificar como genérico
-    if _has_dte_markers(text_upper):
+    if _has_dte_markers(text_upper) or _has_dte_markers(text_normalized):
         logger.debug(f"Clasificado como dte_generico (sin keywords fuertes)")
         return DocumentType.DTE_GENERICO
 

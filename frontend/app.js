@@ -56,7 +56,7 @@ async function api(path, opts = {}) {
   const r = await fetch(API + path, opts);
   if (!r.ok) {
     let detail = r.statusText;
-    try { const j = await r.json(); detail = j.detail || JSON.stringify(j); } catch (_) {}
+    try { const j = await r.json(); detail = j.detail || JSON.stringify(j); } catch (_) { }
     throw new Error(`${r.status} · ${detail}`);
   }
   return r.json();
@@ -185,8 +185,13 @@ function handleFiles(fileList) {
     state.files.push(f);
     added++;
   }
-  if (added > 0) toast(`${added} archivo${added > 1 ? 's' : ''} agregado${added > 1 ? 's' : ''}`, 'ok', 2000);
-  renderFileList();
+  if (added > 0) {
+    toast(`${added} archivo${added > 1 ? 's' : ''} agregado${added > 1 ? 's' : ''}`, 'ok', 2000);
+    renderFileList();
+    setTimeout(startProcess, 600);
+  } else {
+    renderFileList();
+  }
 }
 
 function renderFileList() {
@@ -299,7 +304,7 @@ async function processSync(formData) {
   const dt = ((performance.now() - t0) / 1000).toFixed(1);
 
   state.jobId = j.job_id;
-  state.records = j.records || [];
+  state.records = (j.records || []).map(normalizeRecord);
 
   setProgress(100, `¡Listo! ${state.records.length} documentos procesados`, `Job ${j.job_id} · ${dt}s`);
   $('progress-fill').classList.add('done');
@@ -377,9 +382,14 @@ function finishJob() {
   loadJobs();  // refrescar sidebar
 
   const btnDl = $('btn-download-excel');
+  const btnDlP3 = $('btn-download-excel-p3');
   if (state.jobId) {
     btnDl.disabled = false;
     btnDl.dataset.jobId = state.jobId;
+    if (btnDlP3) {
+      btnDlP3.disabled = false;
+      btnDlP3.dataset.jobId = state.jobId;
+    }
   }
 
   // Auto-avanzar al paso 3 después de una breve pausa
@@ -390,6 +400,36 @@ function finishJob() {
 /* ============================================================
    RESULTS (Paso 3)
    ============================================================ */
+
+/**
+ * Normaliza un registro proveniente de la DB (campos snake_case planos)
+ * al formato que espera el frontend (campos del DTEResponseSchema).
+ * Si el registro ya tiene los campos del frontend, no los sobreescribe.
+ */
+function normalizeRecord(r) {
+  return {
+    archivo:        r.archivo        || r.archivo_origen || '—',
+    doc_type:       r.doc_type       || null,
+    rut_emisor:     r.rut_emisor     || r.rut            || null,
+    razon_social:   r.razon_social   || r.proveedor      || null,
+    folio:          r.folio          ?? null,
+    fecha_emision:  r.fecha_emision  || r.fecha          || null,
+    total:          r.total          ?? null,
+    neto:           r.neto           ?? null,
+    iva:            r.iva            ?? null,
+    exento:         r.exento         ?? null,
+    giro:           r.giro           || null,
+    rut_receptor:   r.rut_receptor   || null,
+    ocr_engine:     r.ocr_engine     || null,
+    ocr_avg_score:  r.ocr_avg_score  ?? null,
+    estado:         r.estado         || 'QUARANTINE',
+    motivo_revision:r.motivo_revision|| null,
+    completeness:   r.completeness   ?? null,
+    missing:        r.missing        || r.missing_fields || [],
+    raw_text:       r.raw_text       || null,
+  };
+}
+
 function renderResults() {
   const tbody = $('results-tbody');
   const counts = { all: state.records.length, OK: 0, QUARANTINE: 0, REJECTED: 0 };
@@ -405,9 +445,8 @@ function renderResults() {
 
   const visible = getFilteredRecords();
   if (visible.length === 0) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${
-      state.records.length === 0 ? 'Aún no hay resultados.' : 'Sin resultados para el filtro actual.'
-    }</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${state.records.length === 0 ? 'Aún no hay resultados.' : 'Sin resultados para el filtro actual.'
+      }</td></tr>`;
     return;
   }
 
@@ -503,9 +542,8 @@ function openDetail(rec) {
     return `
       <div class="detail-field">
         <div class="detail-label">${escapeHTML(label)}</div>
-        <div class="detail-value ${mono ? 'mono' : ''} ${empty ? 'empty' : ''}">${
-          empty ? '— no detectado —' : escapeHTML(typeof value === 'number' && label.match(/Total|Neto|IVA|Exento/) ? fmtCLP(value) : value)
-        }</div>
+        <div class="detail-value ${mono ? 'mono' : ''} ${empty ? 'empty' : ''}">${empty ? '— no detectado —' : escapeHTML(typeof value === 'number' && label.match(/Total|Neto|IVA|Exento/) ? fmtCLP(value) : value)
+      }</div>
       </div>
     `;
   }).join('');
@@ -516,78 +554,103 @@ function openDetail(rec) {
     Array.isArray(rec.missing) && rec.missing.length ? `missing: ${rec.missing.join(', ')}` : null,
   ].filter(Boolean);
 
+  const isPdf = rec.archivo && rec.archivo.toLowerCase().endsWith('.pdf');
+  const isAsync = state.lastJobStatus && state.lastJobStatus.metadata && state.lastJobStatus.metadata.files;
+  const fileUrl = isAsync ? `/uploads/${state.jobId}/${rec.archivo}` : `/uploads/${rec.archivo}`;
+
   $('modal-body').innerHTML = `
-      <div class="detail-completeness">
-        <div class="completeness-head">
-          <span>Completitud de extracción</span>
-          <span><strong>${completeness}%</strong></span>
-        </div>
-        <div class="completeness-bar">
-          <div class="completeness-fill" style="width:${completeness}%"></div>
+    <div style="display: flex; gap: 24px; height: calc(100vh - 120px); min-height: 450px;">
+      <!-- Columna Izquierda: Visor del documento -->
+      <div style="flex: 1; border-right: 1px solid var(--c-border); padding-right: 24px; display: flex; flex-direction: column;">
+        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--c-text-soft);">Visualización del Documento</h4>
+        <div style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--c-border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+          ${isPdf
+      ? `<iframe src="${fileUrl}" style="width:100%; height:100%; border:none;"></iframe>`
+      : `<img src="${fileUrl}" style="max-width:100%; max-height:100%; object-fit: contain;"/>`
+    }
         </div>
       </div>
-      <div class="detail-grid">${fieldsHTML}</div>
-      ${meta.length ? `<div class="detail-meta">${meta.map((m) => `<span class="meta-chip">${escapeHTML(m)}</span>`).join('')}</div>` : ''}
-      
-      ${rec.estado === 'QUARANTINE' ? `
-      <div class="correction-form" style="margin-top:20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px;">
-        <h4 style="margin-top:0; color: #856404; margin-bottom: 8px;">✏️ Corrección Manual y Auto-Aprendizaje</h4>
-        <p style="font-size: 13px; color: #856404; margin-bottom: 12px; line-height: 1.4;">Ingresa los datos correctos. El sistema buscará estos valores en el OCR crudo para aprender y automatizar futuras facturas de este proveedor.</p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <input type="text" id="corr-proveedor" placeholder="Proveedor (ej. Claro)" class="search-input" value="${rec.proveedor || ''}" style="margin:0;"/>
-          <input type="text" id="corr-rut" placeholder="RUT (opcional)" class="search-input" value="${rec.rut || ''}" style="margin:0;"/>
-          <input type="number" id="corr-total" placeholder="Total (ej. 15000)" class="search-input" value="${rec.total || ''}" style="margin:0;"/>
-          <input type="text" id="corr-fecha" placeholder="Fecha (opcional)" class="search-input" value="${rec.fecha || ''}" style="margin:0;"/>
+
+      <!-- Columna Derecha: Campos extraídos y Formulario -->
+      <div style="width: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 8px;">
+        <div class="detail-completeness" style="margin:0;">
+          <div class="completeness-head">
+            <span>Completitud de extracción</span>
+            <span><strong>${completeness}%</strong></span>
+          </div>
+          <div class="completeness-bar">
+            <div class="completeness-fill" style="width:${completeness}%"></div>
+          </div>
         </div>
-        <button id="btn-submit-correction" class="btn-primary" style="margin-top: 10px; width: 100%;">🚀 Aprender y Corregir</button>
+
+        <div class="detail-grid" style="display: grid; grid-template-columns: 1fr; gap: 8px; margin: 0;">
+          ${fieldsHTML}
+        </div>
+
+        ${meta.length ? `<div class="detail-meta" style="margin: 0; display: flex; gap: 6px; flex-wrap: wrap;">${meta.map((m) => `<span class="meta-chip">${escapeHTML(m)}</span>`).join('')}</div>` : ''}
+        
+        ${rec.estado === 'QUARANTINE' ? `
+        <div class="correction-form" style="margin-top: 8px; padding: 16px; background: rgba(245, 158, 11, 0.1); border: 1px solid var(--c-q-border); border-radius: var(--radius);">
+          <h4 style="margin-top:0; color: var(--c-q-dark); margin-bottom: 8px; font-size: 13px; font-weight: 600;">✏️ Corrección Manual y Auto-Aprendizaje</h4>
+          <p style="font-size: 12px; color: var(--c-text-soft); margin-bottom: 12px; line-height: 1.4;">Ingresa los datos correctos. El sistema buscará estos valores en el OCR crudo para aprender y automatizar futuras facturas de este proveedor.</p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <input type="text" id="corr-proveedor" placeholder="Proveedor (ej. Claro)" class="search-input" value="${rec.razon_social || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+            <input type="text" id="corr-rut" placeholder="RUT (opcional)" class="search-input" value="${rec.rut_emisor || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+            <input type="number" id="corr-total" placeholder="Total (ej. 15000)" class="search-input" value="${rec.total || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+            <input type="text" id="corr-fecha" placeholder="Fecha (opcional)" class="search-input" value="${rec.fecha_emision || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+          </div>
+          <button id="btn-submit-correction" class="btn-primary" style="margin-top: 12px; width: 100%; justify-content: center; height: 38px;">🚀 Aprender y Corregir</button>
+        </div>
+        ` : ''}
       </div>
-      ` : ''}
-    `;
+    </div>
+  `;
 
-    $('modal-backdrop').hidden = false;
+  $('modal-backdrop').hidden = false;
 
-    if (rec.estado === 'QUARANTINE') {
-      const btn = $('btn-submit-correction');
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          const prov = $('corr-proveedor').value.trim();
-          const totalStr = $('corr-total').value;
-          const total = parseInt(totalStr, 10);
-          const rut = $('corr-rut').value.trim();
-          const fecha = $('corr-fecha').value.trim();
-          
-          if (!prov) {
-            toast("El proveedor es obligatorio para aprender la regla", "err");
-            return;
-          }
-          
-          btn.disabled = true;
-          btn.textContent = "Aprendiendo y Guardando...";
-          
-          try {
-            const payload = { 
-              proveedor: prov, 
-              total: isNaN(total) ? null : total, 
-              rut: rut || null, 
-              fecha: fecha || null 
-            };
-            const res = await api(`/api/v1/jobs/${state.jobId}/records/${rec.archivo}/correct`, {
-              method: 'POST',
-              body: JSON.stringify(payload)
-            });
-            toast(res.message || "Regla aprendida con éxito", "ok", 3000);
-            $('modal-backdrop').hidden = true;
-            // Opcionalmente recargar
-            setTimeout(() => loadJob(state.jobId), 1000);
-          } catch (e) {
-            toast("Error: " + e.message, "err", 5000);
-            btn.disabled = false;
-            btn.textContent = "🚀 Aprender y Corregir";
-          }
-        });
-      }
+  if (rec.estado === 'QUARANTINE') {
+    const btn = $('btn-submit-correction');
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const prov = $('corr-proveedor').value.trim();
+        const totalStr = $('corr-total').value;
+        const total = parseInt(totalStr, 10);
+        const rut = $('corr-rut').value.trim();
+        const fecha = $('corr-fecha').value.trim();
+
+        if (!prov) {
+          toast("El proveedor es obligatorio para aprender la regla", "err");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Aprendiendo y Guardando...";
+
+        try {
+          const payload = {
+            proveedor: prov,
+            total: isNaN(total) ? null : total,
+            rut: rut || null,
+            fecha: fecha || null
+          };
+          const res = await api(`/api/v1/jobs/${state.jobId}/records/${encodeURIComponent(rec.archivo)}/correct`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          toast(res.message || "Regla aprendida con éxito", "ok", 3000);
+          $('modal-backdrop').hidden = true;
+          // Opcionalmente recargar
+          setTimeout(() => loadJob(state.jobId), 1000);
+        } catch (e) {
+          toast("Error: " + e.message, "err", 5000);
+          btn.disabled = false;
+          btn.textContent = "🚀 Aprender y Corregir";
+        }
+      });
     }
   }
+}
 
 function setupModals() {
   $('modal-close').addEventListener('click', () => { $('modal-backdrop').hidden = true; });
@@ -673,8 +736,8 @@ function renderDelivery() {
   markStepDone(3);
 }
 
-$('btn-download-excel').addEventListener('click', async () => {
-  const jobId = $('btn-download-excel').dataset.jobId;
+async function downloadExcel(btn) {
+  const jobId = btn.dataset.jobId;
   if (!jobId) {
     toast('No hay job para descargar', 'warn');
     return;
@@ -706,7 +769,10 @@ $('btn-download-excel').addEventListener('click', async () => {
     toast(`Error al descargar: ${e.message}`, 'err', 6000);
     logLine(`✗ Error descarga: ${e.message}`, 'err');
   }
-});
+}
+
+$('btn-download-excel').addEventListener('click', () => downloadExcel($('btn-download-excel')));
+$('btn-download-excel-p3').addEventListener('click', () => downloadExcel($('btn-download-excel-p3')));
 
 
 /* ============================================================
@@ -723,7 +789,7 @@ async function loadJobs() {
     list.innerHTML = jobs.map((j) => {
       const cls = j.status === 'done' ? 'ok'
         : j.status === 'failed' ? 'err'
-        : j.status === 'processing' ? 'warn' : '';
+          : j.status === 'processing' ? 'warn' : '';
       const date = new Date(j.created_at).toLocaleString('es-CL', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
       });
@@ -758,7 +824,7 @@ async function loadJob(jobId) {
     const j = await api(`/api/v1/jobs/${jobId}`);
     state.jobId = j.id;
     state.lastJobStatus = j;
-    state.records = j.records || [];
+    state.records = (j.records || []).map(normalizeRecord);
 
     // Marcar como activo en sidebar
     document.querySelectorAll('.job-item').forEach((el) => {

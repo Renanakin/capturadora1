@@ -85,6 +85,8 @@ async def upload_single(file: UploadFile = File(...)):
     try:
         await create_job(job_id, total_files=1, metadata={"original_name": file.filename})
         rec = process_one(target, settings)
+        # Override UUID-based name with original filename for UI display
+        rec.archivo_origen = file.filename
         dte = _record_to_schema(rec)
         
         rut_to_save = rec.rut
@@ -102,10 +104,11 @@ async def upload_single(file: UploadFile = File(...)):
         )
         await update_job(job_id, status="done", processed=1, failed=0 if rec.estado != "REJECTED" else 1)
     finally:
-        try:
-            target.unlink(missing_ok=True)
-        except Exception:
-            pass
+        pass # Preserve uploaded files for frontend preview
+        # try:
+        #     target.unlink(missing_ok=True)
+        # except Exception:
+        #     pass
 
     return UploadResponse(job_id=job_id, archivo=file.filename, result=dte)
 
@@ -138,6 +141,8 @@ async def upload_batch(files: list[UploadFile] = File(...)):
             with target.open("wb") as fdisk:
                 fdisk.write(await f.read())
             rec = process_one(target, settings)
+            # Override UUID-based name with original filename for UI display
+            rec.archivo_origen = f.filename
             raw_records.append(rec)
             dte = _record_to_schema(rec)
             records.append(dte)
@@ -163,10 +168,11 @@ async def upload_batch(files: list[UploadFile] = File(...)):
             failed += 1
             logger.exception(f"Error procesando {f.filename}")
         finally:
-            try:
-                target.unlink(missing_ok=True)
-            except Exception:
-                pass
+            pass # Preserve files for UI preview
+            # try:
+            #     target.unlink(missing_ok=True)
+            # except Exception:
+            #     pass
 
     output_path = None
     if raw_records:

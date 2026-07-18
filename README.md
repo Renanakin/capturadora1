@@ -1,3 +1,4 @@
+
 # CapturadorM3 - OCR Tributario Chileno
 
 CapturadorM3 es un sistema de extracción de información (OCR) y orquestación de datos diseñado para operar sobre documentos tributarios chilenos (boletas, facturas, comprobantes) y cédulas de identidad. Su funcionamiento se basa en la privacidad, la latencia cero, y el procesamiento determinista local usando **PaddleOCR y Tesseract** sin depender de LLMs ni APIs de terceros.

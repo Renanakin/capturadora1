@@ -3,46 +3,51 @@
    ============================================================ */
 
 :root {
-  --c-bg: #f1f5f9;
-  --c-surface: #ffffff;
-  --c-surface-alt: #f8fafc;
-  --c-border: #e2e8f0;
-  --c-border-strong: #cbd5e1;
-  --c-text: #0f172a;
-  --c-text-soft: #475569;
-  --c-text-mute: #94a3b8;
+  /* Dark mode background and surfaces */
+  --c-bg: #0b0f19;
+  --c-surface: rgba(17, 24, 39, 0.7);
+  --c-surface-alt: rgba(31, 41, 55, 0.5);
+  --c-border: rgba(255, 255, 255, 0.08);
+  --c-border-strong: rgba(255, 255, 255, 0.16);
+  --c-text: #f3f4f6;
+  --c-text-soft: #9ca3af;
+  --c-text-mute: #6b7280;
 
-  --c-primary: #3b82f6;
-  --c-primary-dark: #2563eb;
-  --c-primary-soft: #dbeafe;
-  --c-indigo: #4f46e5;
-  --c-indigo-dark: #4338ca;
+  --c-primary: #10b981; /* Emerald green primary */
+  --c-primary-dark: #059669;
+  --c-primary-soft: rgba(16, 185, 129, 0.15);
+  --c-indigo: #3b82f6; /* Electric blue */
+  --c-indigo-dark: #2563eb;
 
   --c-ok: #10b981;
-  --c-ok-dark: #059669;
-  --c-ok-soft: #d1fae5;
-  --c-ok-border: #6ee7b7;
+  --c-ok-dark: #34d399;
+  --c-ok-soft: rgba(52, 211, 153, 0.15);
+  --c-ok-border: rgba(52, 211, 153, 0.3);
 
   --c-q: #f59e0b;
-  --c-q-dark: #d97706;
-  --c-q-soft: #fef3c7;
-  --c-q-border: #fcd34d;
+  --c-q-dark: #fbbf24;
+  --c-q-soft: rgba(251, 191, 36, 0.15);
+  --c-q-border: rgba(251, 191, 36, 0.3);
 
   --c-rj: #ef4444;
-  --c-rj-dark: #dc2626;
-  --c-rj-soft: #fee2e2;
-  --c-rj-border: #fca5a5;
+  --c-rj-dark: #f87171;
+  --c-rj-soft: rgba(248, 113, 113, 0.15);
+  --c-rj-border: rgba(248, 113, 113, 0.3);
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
 
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
-  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.5);
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
 
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+  /* Glassmorphism properties */
+  --glass-bg: rgba(17, 24, 39, 0.65);
+  --glass-blur: blur(12px);
 }
 
 * { box-sizing: border-box; }
@@ -51,15 +56,18 @@ html, body { margin: 0; padding: 0; }
 body {
   font-family: var(--font);
   background: var(--c-bg);
+  background-image: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
+                    radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 45%);
+  background-attachment: fixed;
   color: var(--c-text);
   font-size: 14px;
   line-height: 1.5;
   min-height: 100vh;
 }
 
-button { font-family: inherit; cursor: pointer; }
+button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 input, textarea, select { font-family: inherit; }
-a { color: var(--c-primary); text-decoration: none; }
+a { color: var(--c-indigo); text-decoration: none; }
 a:hover { text-decoration: underline; }
 .muted { color: var(--c-text-soft); }
 
@@ -71,8 +79,11 @@ a:hover { text-decoration: underline; }
   position: sticky;
   top: 0;
   z-index: 50;
-  background: linear-gradient(135deg, #1e3a8a 0%, #4338ca 100%);
-  color: #fff;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--c-border);
+  color: var(--c-text);
   display: flex;
   align-items: center;
   gap: 24px;
@@ -81,14 +92,15 @@ a:hover { text-decoration: underline; }
 }
 .brand { display: flex; align-items: center; gap: 14px; }
 .brand-mark {
-  font-size: 32px;
-  width: 48px; height: 48px;
+  font-size: 28px;
+  width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.12);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--c-border);
   border-radius: var(--radius);
 }
-.brand h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-.brand-sub { margin: 2px 0 0; font-size: 12px; color: #c7d2fe; }
+.brand h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.brand-sub { margin: 2px 0 0; font-size: 12px; color: var(--c-text-soft); }
 
 .header-status {
   display: flex; align-items: center; gap: 8px;
@@ -96,7 +108,8 @@ a:hover { text-decoration: underline; }
 }
 .status-pill {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(255,255,255,0.12);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--c-border);
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 12px;
@@ -108,16 +121,17 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7);
 }
 .status-pill.ok .dot { background: #34d399; }
-.status-pill.ok { background: rgba(52, 211, 153, 0.2); }
+.status-pill.ok { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.2); }
 .status-pill.err .dot { background: #f87171; }
-.status-pill.err { background: rgba(248, 113, 113, 0.2); }
+.status-pill.err { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.2); }
 
 .status-mini {
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 4px;
-  background: rgba(255,255,255,0.08);
-  color: #c7d2fe;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-soft);
   font-family: var(--font-mono);
 }
 
@@ -142,9 +156,12 @@ a:hover { text-decoration: underline; }
   height: fit-content;
   max-height: calc(100vh - 110px);
   overflow-y: auto;
-  background: var(--c-surface);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
   border: 1px solid var(--c-border);
+  box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
 }
@@ -161,12 +178,14 @@ a:hover { text-decoration: underline; }
 .stepper {
   display: flex;
   align-items: center;
-  background: var(--c-surface);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   padding: 14px 20px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--c-border);
   margin-bottom: 20px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
 }
 .step {
   display: flex; align-items: center; gap: 10px;
@@ -178,7 +197,8 @@ a:hover { text-decoration: underline; }
 .step-num {
   width: 28px; height: 28px;
   border-radius: 50%;
-  background: var(--c-border);
+  background: var(--c-surface-alt);
+  border: 1px solid var(--c-border);
   color: var(--c-text-mute);
   display: flex; align-items: center; justify-content: center;
   font-weight: 700;
@@ -189,10 +209,11 @@ a:hover { text-decoration: underline; }
 .step.active .step-num {
   background: var(--c-primary);
   color: #fff;
+  border-color: var(--c-primary);
   box-shadow: 0 0 0 4px var(--c-primary-soft);
 }
 .step.done { color: var(--c-ok-dark); }
-.step.done .step-num { background: var(--c-ok); color: #fff; }
+.step.done .step-num { background: var(--c-ok); border-color: var(--c-ok); color: #fff; }
 .step-connector {
   flex: 1;
   height: 2px;
@@ -206,10 +227,12 @@ a:hover { text-decoration: underline; }
    CARDS
    ============================================================ */
 .card {
-  background: var(--c-surface);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: var(--radius-lg);
   border: 1px solid var(--c-border);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow);
   margin-bottom: 20px;
   overflow: hidden;
   display: none;
@@ -667,37 +690,78 @@ a:hover { text-decoration: underline; }
 
 
 /* ============================================================
-   MODAL
+   MODAL (Drawer Lateral & Centered)
    ============================================================ */
 /* Regla CRÍTICA: el atributo hidden debe tener precedencia sobre display: flex */
 .modal-backdrop[hidden] { display: none !important; }
 
-.modal-backdrop {
+/* Modal Detalle: Drawer lateral que desliza desde la derecha */
+#modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(2px);
+  background: rgba(3, 7, 18, 0.6);
+  backdrop-filter: blur(4px);
   z-index: 100;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+  animation: fadeIn 0.2s;
+}
+#modal-backdrop .modal {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-lg);
+  max-width: 820px;
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  border-left: 1px solid var(--c-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: drawerIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes drawerIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+/* Modal RUT y otros: centrado tradicional */
+#rut-modal {
+  position: fixed; inset: 0;
+  background: rgba(3, 7, 18, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   animation: fadeIn 0.15s;
 }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.modal {
-  background: var(--c-surface);
+#rut-modal .modal {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  max-width: 720px;
+  max-width: 500px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;
-  display: flex; flex-direction: column;
+  display: flex;
+  flex-direction: column;
   animation: modalIn 0.2s ease-out;
 }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(12px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.modal-sm { max-width: 500px; }
+
 .modal-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 20px;
@@ -710,9 +774,10 @@ a:hover { text-decoration: underline; }
   border-radius: 50%;
   font-size: 16px;
   color: var(--c-text-soft);
+  display: flex; align-items: center; justify-content: center;
 }
-.modal-close:hover { background: var(--c-surface-alt); color: var(--c-text); }
-.modal-body { padding: 20px; overflow-y: auto; }
+.modal-close:hover { background: rgba(255,255,255,0.08); color: var(--c-text); }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 
 .rut-input-row {
   display: flex; gap: 8px;

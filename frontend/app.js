@@ -185,8 +185,13 @@ function handleFiles(fileList) {
     state.files.push(f);
     added++;
   }
-  if (added > 0) toast(`${added} archivo${added > 1 ? 's' : ''} agregado${added > 1 ? 's' : ''}`, 'ok', 2000);
-  renderFileList();
+  if (added > 0) {
+    toast(`${added} archivo${added > 1 ? 's' : ''} agregado${added > 1 ? 's' : ''}`, 'ok', 2000);
+    renderFileList();
+    setTimeout(startProcess, 600);
+  } else {
+    renderFileList();
+  }
 }
 
 function renderFileList() {
@@ -377,9 +382,14 @@ function finishJob() {
   loadJobs();  // refrescar sidebar
 
   const btnDl = $('btn-download-excel');
+  const btnDlP3 = $('btn-download-excel-p3');
   if (state.jobId) {
     btnDl.disabled = false;
     btnDl.dataset.jobId = state.jobId;
+    if (btnDlP3) {
+      btnDlP3.disabled = false;
+      btnDlP3.dataset.jobId = state.jobId;
+    }
   }
 
   // Auto-avanzar al paso 3 después de una breve pausa
@@ -516,78 +526,102 @@ function openDetail(rec) {
     Array.isArray(rec.missing) && rec.missing.length ? `missing: ${rec.missing.join(', ')}` : null,
   ].filter(Boolean);
 
+  const isPdf = rec.archivo && rec.archivo.toLowerCase().endsWith('.pdf');
+  const isAsync = state.lastJobStatus && state.lastJobStatus.metadata && state.lastJobStatus.metadata.files;
+  const fileUrl = isAsync ? `/uploads/${state.jobId}/${rec.archivo}` : `/uploads/${rec.archivo}`;
+
   $('modal-body').innerHTML = `
-      <div class="detail-completeness">
-        <div class="completeness-head">
-          <span>Completitud de extracción</span>
-          <span><strong>${completeness}%</strong></span>
-        </div>
-        <div class="completeness-bar">
-          <div class="completeness-fill" style="width:${completeness}%"></div>
+    <div style="display: flex; gap: 24px; height: calc(100vh - 120px); min-height: 450px;">
+      <!-- Columna Izquierda: Visor del documento -->
+      <div style="flex: 1; border-right: 1px solid var(--c-border); padding-right: 24px; display: flex; flex-direction: column;">
+        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--c-text-soft);">Visualización del Documento</h4>
+        <div style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--c-border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+          ${isPdf 
+            ? `<iframe src="${fileUrl}" style="width:100%; height:100%; border:none;"></iframe>`
+            : `<img src="${fileUrl}" style="max-width:100%; max-height:100%; object-fit: contain;"/>`
+          }
         </div>
       </div>
-      <div class="detail-grid">${fieldsHTML}</div>
-      ${meta.length ? `<div class="detail-meta">${meta.map((m) => `<span class="meta-chip">${escapeHTML(m)}</span>`).join('')}</div>` : ''}
-      
-      ${rec.estado === 'QUARANTINE' ? `
-      <div class="correction-form" style="margin-top:20px; padding: 15px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px;">
-        <h4 style="margin-top:0; color: #856404; margin-bottom: 8px;">✏️ Corrección Manual y Auto-Aprendizaje</h4>
-        <p style="font-size: 13px; color: #856404; margin-bottom: 12px; line-height: 1.4;">Ingresa los datos correctos. El sistema buscará estos valores en el OCR crudo para aprender y automatizar futuras facturas de este proveedor.</p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <input type="text" id="corr-proveedor" placeholder="Proveedor (ej. Claro)" class="search-input" value="${rec.proveedor || ''}" style="margin:0;"/>
-          <input type="text" id="corr-rut" placeholder="RUT (opcional)" class="search-input" value="${rec.rut || ''}" style="margin:0;"/>
-          <input type="number" id="corr-total" placeholder="Total (ej. 15000)" class="search-input" value="${rec.total || ''}" style="margin:0;"/>
-          <input type="text" id="corr-fecha" placeholder="Fecha (opcional)" class="search-input" value="${rec.fecha || ''}" style="margin:0;"/>
+
+      <!-- Columna Derecha: Campos extraídos y Formulario -->
+      <div style="width: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding-right: 8px;">
+        <div class="detail-completeness" style="margin:0;">
+          <div class="completeness-head">
+            <span>Completitud de extracción</span>
+            <span><strong>${completeness}%</strong></span>
+          </div>
+          <div class="completeness-bar">
+            <div class="completeness-fill" style="width:${completeness}%"></div>
+          </div>
         </div>
-        <button id="btn-submit-correction" class="btn-primary" style="margin-top: 10px; width: 100%;">🚀 Aprender y Corregir</button>
+
+        <div class="detail-grid" style="display: grid; grid-template-columns: 1fr; gap: 8px; margin: 0;">
+          ${fieldsHTML}
+        </div>
+
+        ${meta.length ? `<div class="detail-meta" style="margin: 0; display: flex; gap: 6px; flex-wrap: wrap;">${meta.map((m) => `<span class="meta-chip">${escapeHTML(m)}</span>`).join('')}</div>` : ''}
+        
+        ${rec.estado === 'QUARANTINE' ? `
+        <div class="correction-form" style="margin-top: 8px; padding: 16px; background: rgba(245, 158, 11, 0.1); border: 1px solid var(--c-q-border); border-radius: var(--radius);">
+          <h4 style="margin-top:0; color: var(--c-q-dark); margin-bottom: 8px; font-size: 13px; font-weight: 600;">✏️ Corrección Manual y Auto-Aprendizaje</h4>
+          <p style="font-size: 12px; color: var(--c-text-soft); margin-bottom: 12px; line-height: 1.4;">Ingresa los datos correctos. El sistema buscará estos valores en el OCR crudo para aprender y automatizar futuras facturas de este proveedor.</p>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <input type="text" id="corr-proveedor" placeholder="Proveedor (ej. Claro)" class="search-input" value="${rec.razon_social || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+            <input type="text" id="corr-rut" placeholder="RUT (opcional)" class="search-input" value="${rec.rut_emisor || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+            <input type="number" id="corr-total" placeholder="Total (ej. 15000)" class="search-input" value="${rec.total || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+            <input type="text" id="corr-fecha" placeholder="Fecha (opcional)" class="search-input" value="${rec.fecha_emision || ''}" style="margin:0; background: var(--c-surface-alt); border: 1px solid var(--c-border); color: var(--c-text);"/>
+          </div>
+          <button id="btn-submit-correction" class="btn-primary" style="margin-top: 12px; width: 100%; justify-content: center; height: 38px;">🚀 Aprender y Corregir</button>
+        </div>
+        ` : ''}
       </div>
-      ` : ''}
-    `;
+    </div>
+  `;
 
-    $('modal-backdrop').hidden = false;
+  $('modal-backdrop').hidden = false;
 
-    if (rec.estado === 'QUARANTINE') {
-      const btn = $('btn-submit-correction');
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          const prov = $('corr-proveedor').value.trim();
-          const totalStr = $('corr-total').value;
-          const total = parseInt(totalStr, 10);
-          const rut = $('corr-rut').value.trim();
-          const fecha = $('corr-fecha').value.trim();
-          
-          if (!prov) {
-            toast("El proveedor es obligatorio para aprender la regla", "err");
-            return;
-          }
-          
-          btn.disabled = true;
-          btn.textContent = "Aprendiendo y Guardando...";
-          
-          try {
-            const payload = { 
-              proveedor: prov, 
-              total: isNaN(total) ? null : total, 
-              rut: rut || null, 
-              fecha: fecha || null 
-            };
-            const res = await api(`/api/v1/jobs/${state.jobId}/records/${rec.archivo}/correct`, {
-              method: 'POST',
-              body: JSON.stringify(payload)
-            });
-            toast(res.message || "Regla aprendida con éxito", "ok", 3000);
-            $('modal-backdrop').hidden = true;
-            // Opcionalmente recargar
-            setTimeout(() => loadJob(state.jobId), 1000);
-          } catch (e) {
-            toast("Error: " + e.message, "err", 5000);
-            btn.disabled = false;
-            btn.textContent = "🚀 Aprender y Corregir";
-          }
-        });
-      }
+  if (rec.estado === 'QUARANTINE') {
+    const btn = $('btn-submit-correction');
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const prov = $('corr-proveedor').value.trim();
+        const totalStr = $('corr-total').value;
+        const total = parseInt(totalStr, 10);
+        const rut = $('corr-rut').value.trim();
+        const fecha = $('corr-fecha').value.trim();
+        
+        if (!prov) {
+          toast("El proveedor es obligatorio para aprender la regla", "err");
+          return;
+        }
+        
+        btn.disabled = true;
+        btn.textContent = "Aprendiendo y Guardando...";
+        
+        try {
+          const payload = { 
+            proveedor: prov, 
+            total: isNaN(total) ? null : total, 
+            rut: rut || null, 
+            fecha: fecha || null 
+          };
+          const res = await api(`/api/v1/jobs/${state.jobId}/records/${rec.archivo}/correct`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+          toast(res.message || "Regla aprendida con éxito", "ok", 3000);
+          $('modal-backdrop').hidden = true;
+          // Opcionalmente recargar
+          setTimeout(() => loadJob(state.jobId), 1000);
+        } catch (e) {
+          toast("Error: " + e.message, "err", 5000);
+          btn.disabled = false;
+          btn.textContent = "🚀 Aprender y Corregir";
+        }
+      });
     }
   }
+}
 
 function setupModals() {
   $('modal-close').addEventListener('click', () => { $('modal-backdrop').hidden = true; });
@@ -673,8 +707,8 @@ function renderDelivery() {
   markStepDone(3);
 }
 
-$('btn-download-excel').addEventListener('click', async () => {
-  const jobId = $('btn-download-excel').dataset.jobId;
+async function downloadExcel(btn) {
+  const jobId = btn.dataset.jobId;
   if (!jobId) {
     toast('No hay job para descargar', 'warn');
     return;
@@ -706,7 +740,10 @@ $('btn-download-excel').addEventListener('click', async () => {
     toast(`Error al descargar: ${e.message}`, 'err', 6000);
     logLine(`✗ Error descarga: ${e.message}`, 'err');
   }
-});
+}
+
+$('btn-download-excel').addEventListener('click', () => downloadExcel($('btn-download-excel')));
+$('btn-download-excel-p3').addEventListener('click', () => downloadExcel($('btn-download-excel-p3')));
 
 
 /* ============================================================
@@ -772,6 +809,18 @@ async function loadJob(jobId) {
       renderDelivery();
       markStepDone(2);
       goToStep(3);
+      
+      const btnDl = $('btn-download-excel');
+      const btnDlP3 = $('btn-download-excel-p3');
+      if (btnDl) {
+        btnDl.disabled = false;
+        btnDl.dataset.jobId = jobId;
+      }
+      if (btnDlP3) {
+        btnDlP3.disabled = false;
+        btnDlP3.dataset.jobId = jobId;
+      }
+      
       toast(`Job ${jobId} cargado`, 'ok', 2000);
     } else if (j.status === 'processing' || j.status === 'queued') {
       // Reanudar polling si aún está corriendo

@@ -102,10 +102,11 @@ async def upload_single(file: UploadFile = File(...)):
         )
         await update_job(job_id, status="done", processed=1, failed=0 if rec.estado != "REJECTED" else 1)
     finally:
-        try:
-            target.unlink(missing_ok=True)
-        except Exception:
-            pass
+        pass # Preserve uploaded files for frontend preview
+        # try:
+        #     target.unlink(missing_ok=True)
+        # except Exception:
+        #     pass
 
     return UploadResponse(job_id=job_id, archivo=file.filename, result=dte)
 
@@ -163,10 +164,11 @@ async def upload_batch(files: list[UploadFile] = File(...)):
             failed += 1
             logger.exception(f"Error procesando {f.filename}")
         finally:
-            try:
-                target.unlink(missing_ok=True)
-            except Exception:
-                pass
+            pass # Preserve files for UI preview
+            # try:
+            #     target.unlink(missing_ok=True)
+            # except Exception:
+            #     pass
 
     output_path = None
     if raw_records:

@@ -63,6 +63,11 @@ def create_app() -> FastAPI:
         async def serve_index():
             return FileResponse(str(frontend_path / "index.html"))
 
+    # Servir las subidas para previsualización en el frontend
+    uploads_path = Path("uploads")
+    uploads_path.mkdir(exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+
     @app.get("/api/v1/", tags=["meta"])
     async def root():
         return {
